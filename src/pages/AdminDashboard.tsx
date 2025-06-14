@@ -1,11 +1,15 @@
-// AdminDashboard.tsx
+// src/pages/AdminDashboard.tsx
 import React, { useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { useToast } from '@/hooks/useToast';
+import { useRestaurant } from '@/hooks/useRestaurant';
+import {RestaurantProvider, useRestaurantContext} from '@/contexts/RestaurantContext';
 import AdminNavbar from '@/components/admin/AdminNavbar';
 import AdminOrdersView from '@/components/admin/AdminOrdersView';
 import AdminStatsView from '@/components/admin/AdminStatsView';
 import AdminOrderModal from '@/components/admin/AdminOrderModal';
-import { Card, CardContent } from '@/components/ui/card';
+import LoadingScreen from '@/components/LoadingScreen';
+import ErrorScreen from '@/components/ErrorScreen';
 
 // Types pour les commandes (sans Firebase)
 export interface Order {
@@ -105,24 +109,24 @@ interface MockUser {
     role: 'admin';
 }
 
-const mockUser: MockUser = {
-    id: 'admin-1',
-    name: 'Administrator',
-    email: 'admin@cafeo2ice.com',
-    role: 'admin'
-};
-
-const AdminDashboard: React.FC = () => {
+const AdminDashboardContent: React.FC = () => {
     const { toast } = useToast();
+    const { restaurant } = useRestaurantContext();
     const [orders, setOrders] = useState<Order[]>(mockOrders);
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [activeTab, setActiveTab] = useState<'orders' | 'stats'>('orders');
-    const [isLoading, setIsLoading] = useState(false);
+
+    // Mock user basé sur le restaurant
+    const mockUser: MockUser = {
+        id: 'admin-1',
+        name: 'Administrator',
+        email: `admin@${restaurant?.id || 'restaurant'}.com`,
+        role: 'admin'
+    };
 
     // Simulation du logout
     const logout = () => {
         console.log('🚪 Déconnexion admin');
-        // Dans un vrai projet, rediriger vers la page de login
         alert('Fonctionnalité de déconnexion à implémenter');
     };
 
@@ -194,23 +198,9 @@ const AdminDashboard: React.FC = () => {
         specialItems: 0
     };
 
-    if (isLoading) {
-        return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-black flex items-center justify-center">
-                <Card className="bg-gray-900 border-gray-700">
-                    <CardContent className="p-8 text-center">
-                        <div className="w-16 h-16 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                        <p className="text-white text-lg font-semibold">Chargement du dashboard...</p>
-                        <p className="text-gray-400 text-sm mt-2">Initialisation en cours</p>
-                    </CardContent>
-                </Card>
-            </div>
-        );
-    }
-
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-black text-white">
-            {/* Navbar simplifiée (sans menu et livraison) */}
+            {/* Navbar avec nom du restaurant depuis Firebase */}
             <AdminNavbar
                 user={mockUser}
                 logout={logout}
@@ -224,6 +214,7 @@ const AdminDashboard: React.FC = () => {
 
             {/* Contenu principal */}
             <div className="container mx-auto px-4 py-6">
+
                 {activeTab === 'stats' && (
                     <AdminStatsView
                         orderStats={orderStats}
@@ -251,6 +242,27 @@ const AdminDashboard: React.FC = () => {
                 />
             )}
         </div>
+    );
+};
+
+const AdminDashboard: React.FC = () => {
+    const { restaurantSlug } = useParams<{ restaurantSlug: string }>();
+    const { restaurant, loading, error } = useRestaurant(restaurantSlug || '');
+
+    // Écran de chargement
+    if (loading) {
+        return <LoadingScreen />;
+    }
+
+    // Gestion des erreurs (restaurant not found)
+    if (error || !restaurant) {
+        return <ErrorScreen error={error || 'Restaurant not found'} slug={restaurantSlug || ''} />;
+    }
+
+    return (
+        <RestaurantProvider restaurant={restaurant} loading={loading} error={error}>
+            <AdminDashboardContent />
+        </RestaurantProvider>
     );
 };
 

@@ -1,6 +1,7 @@
 // AdminNavbar.tsx
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { useRestaurantContext } from '@/contexts/RestaurantContext';
 import {
     BarChart3,
     ShoppingBag,
@@ -43,6 +44,7 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
                                                      orderStats,
                                                  }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const { restaurant, loading: restaurantLoading } = useRestaurantContext();
     const currentTime = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
     const navigationItems = [
@@ -73,13 +75,17 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
                     <div className="flex items-center gap-4">
                         <div className="relative">
                             <div className="w-12 h-12 bg-gradient-to-br from-yellow-500 via-orange-500 to-red-500 rounded-2xl flex items-center justify-center shadow-lg shadow-yellow-500/25">
-                                <span className="text-xl font-bold text-black">O2</span>
+                                <span className="text-xl font-bold text-black">TC</span>
                             </div>
                             <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-black animate-pulse"></div>
                         </div>
                         <div>
                             <h1 className="text-xl font-bold bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
-                                Café O2 Ice
+                                {restaurantLoading ? (
+                                    <div className="h-6 w-32 bg-gray-700 animate-pulse rounded"></div>
+                                ) : (
+                                    restaurant?.config.nom || 'Restaurant'
+                                )}
                             </h1>
                             <div className="flex items-center gap-2 text-xs text-gray-400">
                                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
@@ -87,6 +93,12 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
                                 <span>•</span>
                                 <Clock size={12} />
                                 <span>{currentTime}</span>
+                                {restaurant && (
+                                    <>
+                                        <span>•</span>
+                                        <span className="text-cyan-400">{restaurant.id}</span>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>
