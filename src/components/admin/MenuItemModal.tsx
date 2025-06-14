@@ -1,4 +1,4 @@
-// MenuItemModal.tsx - Correction complète
+// MenuItemModal.tsx - Correction du problème de Select Category
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,22 +44,30 @@ const MenuItemModal: React.FC<MenuItemModalProps> = ({
     });
     const [loading, setLoading] = useState(false);
 
+    // ✅ SOLUTION: Ajouter une clé unique pour forcer le re-render du Select
+    const [selectKey, setSelectKey] = useState(0);
+
     useEffect(() => {
         console.log('🔧 MenuItemModal useEffect:', { item, mode });
 
         if (mode === 'edit' && item) {
             console.log('📝 Mode édition - item:', item);
             // ✅ Mode édition : utiliser des valeurs par défaut pour éviter undefined
-            setFormData({
+            const newFormData = {
                 nom: item.nom || '',
                 categorieId: item.categorieId || '',
                 prix: item.prix || 0,
                 description: item.description || '',
-                disponible: item.disponible ?? true, // ✅ Utiliser ?? pour gérer false
+                disponible: item.disponible ?? true,
                 ordre: item.ordre || 1,
-                isPopular: item.isPopular ?? false, // ✅ Utiliser ?? pour gérer false
-                isSpecial: item.isSpecial ?? false   // ✅ Utiliser ?? pour gérer false
-            });
+                isPopular: item.isPopular ?? false,
+                isSpecial: item.isSpecial ?? false
+            };
+
+            setFormData(newFormData);
+            // ✅ SOLUTION: Incrementer la clé pour forcer le re-render du Select
+            setSelectKey(prev => prev + 1);
+
         } else if (mode === 'add') {
             console.log('➕ Mode ajout');
             // ✅ Réinitialisation complète pour le mode ajout
@@ -88,6 +96,9 @@ const MenuItemModal: React.FC<MenuItemModalProps> = ({
             } else {
                 setFormData(baseFormData);
             }
+
+            // ✅ SOLUTION: Incrementer la clé pour le mode ajout aussi
+            setSelectKey(prev => prev + 1);
         }
     }, [item, mode, existingItems]);
 
@@ -215,7 +226,9 @@ const MenuItemModal: React.FC<MenuItemModalProps> = ({
                                 <Label className="text-white">
                                     Catégorie *
                                 </Label>
+                                {/* ✅ SOLUTION: Ajouter la key pour forcer le re-render */}
                                 <Select
+                                    key={selectKey} // ✅ Cette clé force le re-render
                                     value={formData.categorieId}
                                     onValueChange={(value) => {
                                         console.log('🔄 Changement catégorie:', value);
@@ -300,7 +313,7 @@ const MenuItemModal: React.FC<MenuItemModalProps> = ({
                         <div className="space-y-4">
                             <Label className="text-white font-medium">Options</Label>
 
-                            {/* Disponible - ✅ S'assurer que checked est toujours boolean */}
+                            {/* Disponible */}
                             <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg border border-gray-700">
                                 <div>
                                     <Label className="text-white font-medium">
@@ -316,7 +329,7 @@ const MenuItemModal: React.FC<MenuItemModalProps> = ({
                                 />
                             </div>
 
-                            {/* Populaire - ✅ S'assurer que checked est toujours boolean */}
+                            {/* Populaire */}
                             <div className="flex items-center justify-between p-4 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
                                 <div className="flex items-center gap-2">
                                     <Star size={16} className="text-yellow-500" />
@@ -335,7 +348,7 @@ const MenuItemModal: React.FC<MenuItemModalProps> = ({
                                 />
                             </div>
 
-                            {/* Spécial - ✅ S'assurer que checked est toujours boolean */}
+                            {/* Spécial */}
                             <div className="flex items-center justify-between p-4 bg-purple-500/10 rounded-lg border border-purple-500/20">
                                 <div className="flex items-center gap-2">
                                     <Sparkles size={16} className="text-purple-500" />
