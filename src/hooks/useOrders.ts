@@ -25,6 +25,15 @@ export interface Order {
     tableId?: string; // numéro de table ou 'takeaway'
 }
 
+export interface OrderStats {
+    totalOrders: number;
+    totalRevenue: number;
+    tableOrders: number;
+    takeawayOrders: number;
+    averageOrderValue: number;
+    ordersThisHour: number;
+}
+
 export const useOrders = (restaurantSlug: string) => {
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
@@ -36,6 +45,9 @@ export const useOrders = (restaurantSlug: string) => {
             return;
         }
 
+        console.log('🔄 Initializing real-time orders listener for:', restaurantSlug);
+
+        // ✅ Utiliser la vraie structure Firebase: orders/${restaurantSlug}
         const ordersRef = ref(rtDatabase, `orders/${restaurantSlug}`);
 
         setLoading(true);
@@ -45,10 +57,11 @@ export const useOrders = (restaurantSlug: string) => {
             (snapshot) => {
                 try {
                     const data = snapshot.val();
+                    console.log('📥 Orders data received:', data);
                     const allOrders: Order[] = [];
 
                     if (data) {
-                        // Parcourir les tables
+                        // ✅ Parcourir les tables (structure: orders/restaurant/tables/tableX/orderId)
                         if (data.tables) {
                             Object.entries(data.tables).forEach(([tableId, tableData]: [string, any]) => {
                                 if (tableData && typeof tableData === 'object') {
@@ -57,6 +70,8 @@ export const useOrders = (restaurantSlug: string) => {
                                             allOrders.push({
                                                 id: orderId,
                                                 ...orderData,
+                                                mode: 'sur_place' as const,
+                                                tableNumber: parseInt(tableId) || 0,
                                                 tablePath: 'tables',
                                                 tableId: tableId
                                             });
@@ -66,13 +81,14 @@ export const useOrders = (restaurantSlug: string) => {
                             });
                         }
 
-                        // Parcourir takeaway
+                        // ✅ Parcourir takeaway (structure: orders/restaurant/takeaway/orderId)
                         if (data.takeaway) {
                             Object.entries(data.takeaway).forEach(([orderId, orderData]: [string, any]) => {
                                 if (orderData && typeof orderData === 'object') {
                                     allOrders.push({
                                         id: orderId,
                                         ...orderData,
+                                        mode: 'emporter' as const,
                                         tablePath: 'takeaway',
                                         tableId: 'takeaway'
                                     });
@@ -86,25 +102,78 @@ export const useOrders = (restaurantSlug: string) => {
 
                     setOrders(allOrders);
                     setLoading(false);
-                    console.log(`📦 ${allOrders.length} commandes chargées pour ${restaurantSlug}`);
+                    setError(null);
+                    console.log(`✅ ${allOrders.length} commandes chargées pour ${restaurantSlug}`);
                 } catch (err) {
-                    console.error('Erreur lors du parsing des commandes:', err);
-                    setError('Erreur lors du chargement des commandes');
+                    console.error('❌ Erreur lors du parsing des commandes:', err);
+                    setError('Erreur lors du traitement des commandes');
                     setLoading(false);
                 }
             },
             (error) => {
-                console.error('Erreur Firebase Realtime Database:', error);
-                setError('Erreur de connexion à la base de données');
+                console.error('❌ Firebase orders listener error:', error);
+                setError(`Erreur de connexion: ${error.message}`);
                 setLoading(false);
             }
         );
 
-        // Cleanup
+        // ✅ Cleanup correct
         return () => {
             off(ordersRef, 'value', unsubscribe);
         };
     }, [restaurantSlug]);
+
+    // Calculer les statistiques des commandes
+    const getOrderStats = (): OrderStats => {
+        const today = new Date();
+        const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const startOfHour = new Date(today.getFullYear(), today.getMonth(), today.getDate(), today.getHours());
+
+        const todayOrders = orders.filter(order => {
+            const orderDate = new Date(order.createdAt);
+            return orderDate >= startOfDay;
+        });
+
+        const thisHourOrders = orders.filter(order => {
+            const orderDate = new Date(order.createdAt);
+            return orderDate >= startOfHour;
+        });
+
+        const totalRevenue = todayOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+        const tableOrders = todayOrders.filter(order => order.mode === 'sur_place').length;
+        const takeawayOrders = todayOrders.filter(order => order.mode === 'emporter').length;
+
+        return {
+            totalOrders: todayOrders.length,
+            totalRevenue,
+            tableOrders,
+            takeawayOrders,
+            averageOrderValue: todayOrders.length > 0 ? totalRevenue / todayOrders.length : 0,
+            ordersThisHour: thisHourOrders.length
+        };
+    };
+
+    // Fonction pour grouper les commandes par date
+    const getOrdersByDate = () => {
+        const grouped = orders.reduce((acc, order) => {
+            const date = new Date(order.createdAt).toDateString();
+            if (!acc[date]) {
+                acc[date] = [];
+            }
+            acc[date].push(order);
+            return acc;
+        }, {} as Record<string, Order[]>);
+
+        // Convertir en tableau trié par date (plus récent en premier)
+        return Object.entries(grouped)
+            .sort(([dateA], [dateB]) => new Date(dateB).getTime() - new Date(dateA).getTime())
+            .map(([date, orders]) => ({
+                date,
+                orders: orders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+                count: orders.length,
+                totalRevenue: orders.reduce((sum, order) => sum + order.total, 0)
+            }));
+    };
 
     // Fonction pour imprimer un ticket
     const printTicket = async (order: Order, authToken?: string) => {
@@ -156,29 +225,71 @@ export const useOrders = (restaurantSlug: string) => {
         }
     };
 
-    // Statistiques des commandes
-    const getOrderStats = () => {
-        const today = new Date().toDateString();
-        const todayOrders = orders.filter(order => {
-            const orderDate = new Date(order.createdAt).toDateString();
-            return orderDate === today;
-        });
+    // Fonction pour filtrer les commandes
+    const filterOrders = (
+        searchTerm: string = '',
+        dateRange: { start?: Date; end?: Date } = {},
+        statusFilter: string = 'all',
+        typeFilter: string = 'all',
+        amountRange: { min?: number; max?: number } = {}
+    ) => {
+        let filtered = [...orders];
 
-        const totalRevenue = todayOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+        // Filtre par terme de recherche
+        if (searchTerm.trim()) {
+            const term = searchTerm.toLowerCase();
+            filtered = filtered.filter(order => {
+                const matchesId = order.id.toLowerCase().includes(term);
+                const matchesTable = order.tableNumber?.toString().includes(term);
+                const matchesClient = order.numeroClient?.toString().includes(term);
+                const matchesItems = order.items.some(item => 
+                    item.nom.toLowerCase().includes(term)
+                );
+                const matchesTotal = order.total.toString().includes(term);
+                
+                return matchesId || matchesTable || matchesClient || matchesItems || matchesTotal;
+            });
+        }
 
-        return {
-            totalOrders: todayOrders.length,
-            totalRevenue,
-            tableOrders: todayOrders.filter(order => order.mode === 'sur_place').length,
-            takeawayOrders: todayOrders.filter(order => order.mode === 'emporter').length
-        };
+        // Filtre par plage de dates
+        if (dateRange.start || dateRange.end) {
+            filtered = filtered.filter(order => {
+                const orderDate = new Date(order.createdAt);
+                const afterStart = !dateRange.start || orderDate >= dateRange.start;
+                const beforeEnd = !dateRange.end || orderDate <= dateRange.end;
+                return afterStart && beforeEnd;
+            });
+        }
+
+        // Filtre par statut
+        if (statusFilter !== 'all') {
+            filtered = filtered.filter(order => order.status === statusFilter);
+        }
+
+        // Filtre par type
+        if (typeFilter !== 'all') {
+            filtered = filtered.filter(order => order.mode === typeFilter);
+        }
+
+        // Filtre par montant
+        if (amountRange.min !== undefined || amountRange.max !== undefined) {
+            filtered = filtered.filter(order => {
+                const aboveMin = amountRange.min === undefined || order.total >= amountRange.min;
+                const belowMax = amountRange.max === undefined || order.total <= amountRange.max;
+                return aboveMin && belowMax;
+            });
+        }
+
+        return filtered;
     };
 
     return {
         orders,
         loading,
         error,
-        printTicket,
-        getOrderStats
+        getOrderStats,
+        getOrdersByDate,
+        filterOrders,
+        printTicket
     };
 };
