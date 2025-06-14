@@ -70,7 +70,16 @@ export const useMenuCategories = (restaurantSlug: string) => {
     const addCategory = async (categoryData: Omit<MenuCategory, 'id'>) => {
         try {
             const categoriesRef = collection(db, 'restaurants', restaurantSlug, 'menuCategories');
-            await addDoc(categoriesRef, categoryData);
+
+            // ✅ S'assurer que les valeurs par défaut sont définies
+            const categoryWithDefaults = {
+                nom: categoryData.nom || '',
+                ordre: categoryData.ordre || 1,
+                active: categoryData.active ?? true,
+                emoji: categoryData.emoji || '📋'
+            };
+
+            await addDoc(categoriesRef, categoryWithDefaults);
         } catch (error) {
             console.error('Error adding category:', error);
             throw new Error('Erreur lors de l\'ajout de la catégorie');
@@ -143,10 +152,20 @@ export const useMenuItems = (restaurantSlug: string) => {
 
         const unsubscribe = onSnapshot(q,
             (snapshot) => {
-                const itemsData = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                })) as MenuItem[];
+                const itemsData = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        nom: data.nom || '',
+                        categorieId: data.categorieId || '',
+                        prix: data.prix || 0,
+                        description: data.description || '',
+                        disponible: data.disponible ?? true,
+                        ordre: data.ordre || 1,
+                        isPopular: data.isPopular ?? false,
+                        isSpecial: data.isSpecial ?? false
+                    };
+                }) as MenuItem[];
 
                 setItems(itemsData);
                 setLoading(false);
@@ -165,7 +184,20 @@ export const useMenuItems = (restaurantSlug: string) => {
     const addItem = async (itemData: Omit<MenuItem, 'id'>) => {
         try {
             const itemsRef = collection(db, 'restaurants', restaurantSlug, 'menuItems');
-            await addDoc(itemsRef, itemData);
+
+            // ✅ Assurer des valeurs par défaut pour éviter undefined
+            const itemWithDefaults = {
+                nom: itemData.nom || '',
+                categorieId: itemData.categorieId || '',
+                prix: itemData.prix || 0,
+                description: itemData.description || '',
+                disponible: itemData.disponible ?? true,
+                ordre: itemData.ordre || 1,
+                isPopular: itemData.isPopular ?? false,
+                isSpecial: itemData.isSpecial ?? false
+            };
+
+            await addDoc(itemsRef, itemWithDefaults);
         } catch (error) {
             console.error('Error adding item:', error);
             throw new Error('Erreur lors de l\'ajout de l\'article');

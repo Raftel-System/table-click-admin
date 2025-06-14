@@ -16,8 +16,15 @@ import {
     ChefHat
 } from 'lucide-react';
 
+interface User {
+    id: string;
+    name: string;
+    email: string;
+    role: 'admin';
+}
+
 interface AdminNavbarProps {
-    user: any;
+    user: User;
     logout: () => void;
     activeTab: 'orders' | 'stats' | 'menu';
     setActiveTab: (tab: 'orders' | 'stats' | 'menu') => void;

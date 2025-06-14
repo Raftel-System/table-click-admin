@@ -27,7 +27,6 @@ interface SidebarCategoriesProps {
 }
 
 const SidebarCategories: React.FC<SidebarCategoriesProps> = ({
-                                                                 slug,
                                                                  categories,
                                                                  selectedCategory,
                                                                  onSelect,

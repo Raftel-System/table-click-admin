@@ -29,7 +29,6 @@ interface MenuItemPanelProps {
 }
 
 const MenuItemPanel: React.FC<MenuItemPanelProps> = ({
-                                                         slug,
                                                          categoryId,
                                                          categories,
                                                          items,

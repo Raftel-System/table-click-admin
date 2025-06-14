@@ -1,4 +1,5 @@
-// src/components/admin/MenuItemModal.tsx
+// MenuItemModal.tsx - Correction complète
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,8 @@ const MenuItemModal: React.FC<MenuItemModalProps> = ({
                                                          existingItems
                                                      }) => {
     const { toast } = useToast();
+
+    // ✅ Initialisation avec des valeurs par défaut pour éviter undefined
     const [formData, setFormData] = useState({
         nom: '',
         categorieId: '',
@@ -42,35 +45,56 @@ const MenuItemModal: React.FC<MenuItemModalProps> = ({
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        if (item && mode === 'edit') {
-            setFormData({
-                nom: item.nom,
-                categorieId: item.categorieId,
-                prix: item.prix,
-                description: item.description,
-                disponible: item.disponible,
-                ordre: item.ordre,
-                isPopular: item.isPopular,
-                isSpecial: item.isSpecial
-            });
-        } else if (item && mode === 'add' && item.categorieId) {
-            // Pré-sélectionner la catégorie si fournie
-            const categoryItems = existingItems.filter(i => i.categorieId === item.categorieId);
-            const maxOrdre = Math.max(...categoryItems.map(i => i.ordre), 0);
+        console.log('🔧 MenuItemModal useEffect:', { item, mode });
 
-            setFormData(prev => ({
-                ...prev,
-                categorieId: item.categorieId,
-                ordre: maxOrdre + 1
-            }));
+        if (mode === 'edit' && item) {
+            console.log('📝 Mode édition - item:', item);
+            // ✅ Mode édition : utiliser des valeurs par défaut pour éviter undefined
+            setFormData({
+                nom: item.nom || '',
+                categorieId: item.categorieId || '',
+                prix: item.prix || 0,
+                description: item.description || '',
+                disponible: item.disponible ?? true, // ✅ Utiliser ?? pour gérer false
+                ordre: item.ordre || 1,
+                isPopular: item.isPopular ?? false, // ✅ Utiliser ?? pour gérer false
+                isSpecial: item.isSpecial ?? false   // ✅ Utiliser ?? pour gérer false
+            });
         } else if (mode === 'add') {
-            // Pour un nouvel ajout sans catégorie pré-sélectionnée
-            setFormData(prev => ({
-                ...prev,
-                ordre: 1
-            }));
+            console.log('➕ Mode ajout');
+            // ✅ Réinitialisation complète pour le mode ajout
+            const baseFormData = {
+                nom: '',
+                categorieId: '',
+                prix: 0,
+                description: '',
+                disponible: true,
+                ordre: 1,
+                isPopular: false,
+                isSpecial: false
+            };
+
+            // Si une catégorie est pré-sélectionnée
+            if (item && item.categorieId) {
+                console.log('➕ Avec catégorie pré-sélectionnée:', item.categorieId);
+                const categoryItems = existingItems.filter(i => i.categorieId === item.categorieId);
+                const maxOrdre = Math.max(...categoryItems.map(i => i.ordre), 0);
+
+                setFormData({
+                    ...baseFormData,
+                    categorieId: item.categorieId,
+                    ordre: maxOrdre + 1
+                });
+            } else {
+                setFormData(baseFormData);
+            }
         }
     }, [item, mode, existingItems]);
+
+    // ✅ Debug pour voir le formData
+    useEffect(() => {
+        console.log('🔍 FormData mis à jour:', formData);
+    }, [formData]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -128,10 +152,11 @@ const MenuItemModal: React.FC<MenuItemModalProps> = ({
                 description: `"${formData.nom}" a été ${mode === 'add' ? 'créé' : 'modifié'} avec succès`
             });
             onClose();
-        } catch (error: any) {
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue';
             toast({
                 title: "Erreur",
-                description: error.message,
+                description: errorMessage,
                 variant: "destructive"
             });
         } finally {
@@ -193,6 +218,7 @@ const MenuItemModal: React.FC<MenuItemModalProps> = ({
                                 <Select
                                     value={formData.categorieId}
                                     onValueChange={(value) => {
+                                        console.log('🔄 Changement catégorie:', value);
                                         setFormData(prev => ({ ...prev, categorieId: value }));
                                         // Recalculer l'ordre pour la nouvelle catégorie
                                         const categoryItems = existingItems.filter(i => i.categorieId === value);
@@ -274,7 +300,7 @@ const MenuItemModal: React.FC<MenuItemModalProps> = ({
                         <div className="space-y-4">
                             <Label className="text-white font-medium">Options</Label>
 
-                            {/* Disponible */}
+                            {/* Disponible - ✅ S'assurer que checked est toujours boolean */}
                             <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg border border-gray-700">
                                 <div>
                                     <Label className="text-white font-medium">
@@ -285,12 +311,12 @@ const MenuItemModal: React.FC<MenuItemModalProps> = ({
                                     </p>
                                 </div>
                                 <Switch
-                                    checked={formData.disponible}
+                                    checked={Boolean(formData.disponible)}
                                     onCheckedChange={(checked) => setFormData(prev => ({ ...prev, disponible: checked }))}
                                 />
                             </div>
 
-                            {/* Populaire */}
+                            {/* Populaire - ✅ S'assurer que checked est toujours boolean */}
                             <div className="flex items-center justify-between p-4 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
                                 <div className="flex items-center gap-2">
                                     <Star size={16} className="text-yellow-500" />
@@ -304,12 +330,12 @@ const MenuItemModal: React.FC<MenuItemModalProps> = ({
                                     </div>
                                 </div>
                                 <Switch
-                                    checked={formData.isPopular}
+                                    checked={Boolean(formData.isPopular)}
                                     onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isPopular: checked }))}
                                 />
                             </div>
 
-                            {/* Spécial */}
+                            {/* Spécial - ✅ S'assurer que checked est toujours boolean */}
                             <div className="flex items-center justify-between p-4 bg-purple-500/10 rounded-lg border border-purple-500/20">
                                 <div className="flex items-center gap-2">
                                     <Sparkles size={16} className="text-purple-500" />
@@ -323,7 +349,7 @@ const MenuItemModal: React.FC<MenuItemModalProps> = ({
                                     </div>
                                 </div>
                                 <Switch
-                                    checked={formData.isSpecial}
+                                    checked={Boolean(formData.isSpecial)}
                                     onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isSpecial: checked }))}
                                 />
                             </div>

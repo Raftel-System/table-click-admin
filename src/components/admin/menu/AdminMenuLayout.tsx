@@ -14,16 +14,13 @@ const AdminMenuLayout: React.FC = () => {
     const {
         categories,
         loading: categoriesLoading,
-        error: categoriesError,
         addCategory,
         updateCategory,
         deleteCategory
     } = useMenuCategories(restaurant?.id || '');
 
     const {
-        items,
         loading: itemsLoading,
-        error: itemsError,
         addItem,
         updateItem,
         deleteItem,
