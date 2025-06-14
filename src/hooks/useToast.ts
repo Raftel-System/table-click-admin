@@ -39,3 +39,6 @@ export const useToast = () => {
         dismiss: toast.dismiss,
     };
 };
+
+// Export du toast direct pour compatibilité
+export { toast };

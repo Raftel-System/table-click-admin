@@ -1,4 +1,4 @@
-// AdminNavbar.tsx
+// src/components/admin/AdminNavbar.tsx
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useRestaurantContext } from '@/contexts/RestaurantContext';
@@ -12,14 +12,15 @@ import {
     X,
     Clock,
     TrendingUp,
-    Users
+    Users,
+    ChefHat
 } from 'lucide-react';
 
 interface AdminNavbarProps {
     user: any;
     logout: () => void;
-    activeTab: 'orders' | 'stats';
-    setActiveTab: (tab: 'orders' | 'stats') => void;
+    activeTab: 'orders' | 'stats' | 'menu';
+    setActiveTab: (tab: 'orders' | 'stats' | 'menu') => void;
     orderStats: {
         totalOrders: number;
         totalRevenue: number;
@@ -42,6 +43,9 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
                                                      activeTab,
                                                      setActiveTab,
                                                      orderStats,
+                                                     menuStats,
+                                                     hasMenuData,
+                                                     menuLoading,
                                                  }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const { restaurant, loading: restaurantLoading } = useRestaurantContext();
@@ -55,6 +59,14 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
             badge: orderStats.pendingOrders > 0 ? orderStats.pendingOrders : null,
             color: 'text-blue-400',
             activeColor: 'bg-blue-500/20 text-blue-400 border-blue-500/50'
+        },
+        {
+            id: 'menu',
+            label: 'Menu',
+            icon: ChefHat,
+            badge: menuLoading ? '...' : (hasMenuData ? menuStats.totalCategories : null),
+            color: 'text-purple-400',
+            activeColor: 'bg-purple-500/20 text-purple-400 border-purple-500/50'
         },
         {
             id: 'stats',
@@ -163,7 +175,7 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
                     </div>
                 </div>
 
-                {/* Navigation Tabs - Seulement Commandes et Stats */}
+                {/* Navigation Tabs - Commandes, Menu et Stats */}
                 <div className={`${isMobileMenuOpen ? 'block' : 'hidden'} md:block`}>
                     <div className="flex flex-col md:flex-row gap-2">
                         {navigationItems.map((item) => {
@@ -203,8 +215,8 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
                         })}
                     </div>
 
-                    {/* Quick Stats Bar - Simplifié */}
-                    <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {/* Quick Stats Bar - Étendu avec Menu */}
+                    <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-4">
                         <div className="bg-gradient-to-r from-blue-500/10 to-blue-600/10 border border-blue-500/20 rounded-lg p-3">
                             <div className="flex items-center gap-2">
                                 <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
@@ -224,7 +236,7 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
                                 </div>
                                 <div>
                                     <p className="text-xs text-gray-400">Chiffre d'affaires</p>
-                                    <p className="text-sm font-bold text-green-400">{orderStats.totalRevenue.toFixed(0)} DH</p>
+                                    <p className="text-sm font-bold text-green-400">{orderStats.totalRevenue.toFixed(0)}€</p>
                                 </div>
                             </div>
                         </div>
@@ -237,6 +249,34 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
                                 <div>
                                     <p className="text-xs text-gray-400">En attente</p>
                                     <p className="text-sm font-bold text-orange-400">{orderStats.pendingOrders}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-gradient-to-r from-purple-500/10 to-purple-600/10 border border-purple-500/20 rounded-lg p-3">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                                    <ChefHat size={16} className="text-purple-400" />
+                                </div>
+                                <div>
+                                    <p className="text-xs text-gray-400">Catégories</p>
+                                    <p className="text-sm font-bold text-purple-400">
+                                        {menuLoading ? '...' : menuStats.totalCategories}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-gradient-to-r from-yellow-500/10 to-yellow-600/10 border border-yellow-500/20 rounded-lg p-3">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 bg-yellow-500/20 rounded-lg flex items-center justify-center">
+                                    <div className="text-yellow-400 text-xs font-bold">#{menuStats.totalItems}</div>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-gray-400">Articles</p>
+                                    <p className="text-sm font-bold text-yellow-400">
+                                        {menuLoading ? '...' : menuStats.totalItems}
+                                    </p>
                                 </div>
                             </div>
                         </div>

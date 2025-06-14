@@ -3,10 +3,12 @@ import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useToast } from '@/hooks/useToast';
 import { useRestaurant } from '@/hooks/useRestaurant';
-import {RestaurantProvider, useRestaurantContext} from '@/contexts/RestaurantContext';
+import { useMenuCategories, useMenuItems } from '@/hooks/useMenu';
+import { RestaurantProvider, useRestaurantContext } from '@/contexts/RestaurantContext';
 import AdminNavbar from '@/components/admin/AdminNavbar';
 import AdminOrdersView from '@/components/admin/AdminOrdersView';
 import AdminStatsView from '@/components/admin/AdminStatsView';
+import AdminMenuView from '@/components/admin/AdminMenuView.tsx';
 import AdminOrderModal from '@/components/admin/AdminOrderModal';
 import LoadingScreen from '@/components/LoadingScreen';
 import ErrorScreen from '@/components/ErrorScreen';
@@ -43,10 +45,10 @@ const mockOrders: Order[] = [
             address: 'Rue Mohammed V, Errachidia'
         },
         items: [
-            { name: 'Express', price: 25, quantity: 1 },
-            { name: 'Café Américain', price: 15, quantity: 2 }
+            { name: 'Express', price: 2.5, quantity: 1 },
+            { name: 'Café Américain', price: 1.5, quantity: 2 }
         ],
-        total: 55,
+        total: 5.5,
         status: 'pending',
         orderType: 'delivery',
         specialInstructions: 'Sans sucre pour le café',
@@ -60,9 +62,9 @@ const mockOrders: Order[] = [
             email: 'fatima@email.com'
         },
         items: [
-            { name: 'Tajine Agneau', price: 85, quantity: 1 }
+            { name: 'Tajine Agneau', price: 8.5, quantity: 1 }
         ],
-        total: 85,
+        total: 8.5,
         status: 'preparing',
         orderType: 'pickup',
         createdAt: new Date(Date.now() - 3600000).toISOString()
@@ -76,10 +78,10 @@ const mockOrders: Order[] = [
             address: 'Avenue des FAR, Errachidia'
         },
         items: [
-            { name: 'Couscous Royal', price: 120, quantity: 1 },
-            { name: 'Thé à la menthe', price: 10, quantity: 2 }
+            { name: 'Couscous Royal', price: 12.0, quantity: 1 },
+            { name: 'Thé à la menthe', price: 1.0, quantity: 2 }
         ],
-        total: 140,
+        total: 14.0,
         status: 'ready',
         orderType: 'delivery',
         createdAt: new Date(Date.now() - 7200000).toISOString()
@@ -92,9 +94,9 @@ const mockOrders: Order[] = [
             email: 'aicha@email.com'
         },
         items: [
-            { name: 'Pastilla Poisson', price: 45, quantity: 2 }
+            { name: 'Pastilla Poisson', price: 4.5, quantity: 2 }
         ],
-        total: 90,
+        total: 9.0,
         status: 'delivered',
         orderType: 'pickup',
         createdAt: new Date(Date.now() - 10800000).toISOString()
@@ -114,7 +116,27 @@ const AdminDashboardContent: React.FC = () => {
     const { restaurant } = useRestaurantContext();
     const [orders, setOrders] = useState<Order[]>(mockOrders);
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-    const [activeTab, setActiveTab] = useState<'orders' | 'stats'>('orders');
+    const [activeTab, setActiveTab] = useState<'orders' | 'stats' | 'menu'>('orders');
+
+    // Hooks pour le menu
+    const {
+        categories,
+        loading: categoriesLoading,
+        error: categoriesError,
+        addCategory,
+        updateCategory,
+        deleteCategory
+    } = useMenuCategories(restaurant?.id || '');
+
+    const {
+        items,
+        loading: itemsLoading,
+        error: itemsError,
+        addItem,
+        updateItem,
+        deleteItem,
+        getItemsByCategory
+    } = useMenuItems(restaurant?.id || '');
 
     // Mock user basé sur le restaurant
     const mockUser: MockUser = {
@@ -190,12 +212,12 @@ const AdminDashboardContent: React.FC = () => {
 
     const orderStats = getTodayStats();
 
-    // Stats menu (vides car pas de gestion menu)
+    // Stats menu
     const menuStats = {
-        totalCategories: 0,
-        totalItems: 0,
-        popularItems: 0,
-        specialItems: 0
+        totalCategories: categories.length,
+        totalItems: items.length,
+        popularItems: items.filter(item => item.isPopular).length,
+        specialItems: items.filter(item => item.isSpecial).length
     };
 
     return (
@@ -208,13 +230,12 @@ const AdminDashboardContent: React.FC = () => {
                 setActiveTab={setActiveTab}
                 orderStats={orderStats}
                 menuStats={menuStats}
-                hasMenuData={false}
-                menuLoading={false}
+                hasMenuData={categories.length > 0 || items.length > 0}
+                menuLoading={categoriesLoading || itemsLoading}
             />
 
             {/* Contenu principal */}
             <div className="container mx-auto px-4 py-6">
-
                 {activeTab === 'stats' && (
                     <AdminStatsView
                         orderStats={orderStats}
@@ -230,6 +251,10 @@ const AdminDashboardContent: React.FC = () => {
                         onOrderSelect={setSelectedOrder}
                         onUpdateOrderStatus={handleUpdateOrderStatus}
                     />
+                )}
+
+                {activeTab === 'menu' && (
+                    <AdminMenuView />
                 )}
             </div>
 
