@@ -34,6 +34,19 @@ export interface OrderStats {
     ordersThisHour: number;
 }
 
+interface OrderData {
+    items: Array<{
+        nom: string;
+        prix: number;
+        quantite: number;
+    }>;
+    total: number;
+    createdAt: string;
+    numeroClient?: string;
+    noteCommande?: string;
+    // Ajoutez d'autres propriétés selon vos données
+}
+
 export const useOrders = (restaurantSlug: string) => {
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
@@ -81,16 +94,25 @@ export const useOrders = (restaurantSlug: string) => {
                             });
                         }
 
-                        // ✅ Parcourir takeaway (structure: orders/restaurant/takeaway/orderId)
+                        // (structure: orders/restaurant/takeaway/orderId)
                         if (data.takeaway) {
-                            Object.entries(data.takeaway).forEach(([orderId, orderData]: [string, any]) => {
-                                if (orderData && typeof orderData === 'object') {
+                            Object.entries(data.takeaway).forEach(([orderId, orderData]) => {
+                                // Vérification que orderData correspond à OrderData
+                                if (orderData &&
+                                    typeof orderData === 'object' &&
+                                    'items' in orderData &&
+                                    'total' in orderData &&
+                                    'createdAt' in orderData) {
+
+                                    const typedOrderData = orderData as OrderData;
                                     allOrders.push({
                                         id: orderId,
-                                        ...orderData,
+                                        ...typedOrderData,
                                         mode: 'emporter' as const,
                                         tablePath: 'takeaway',
-                                        tableId: 'takeaway'
+                                        tableId: 'takeaway',
+                                        status: 'pending',
+                                        numeroClient: typedOrderData.numeroClient ? Number(typedOrderData.numeroClient) : undefined
                                     });
                                 }
                             });

@@ -1,7 +1,6 @@
 // src/pages/AdminDashboard.tsx - Version avec commandes temps réel
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useToast } from '@/hooks/useToast';
 import { useRestaurant } from '@/hooks/useRestaurant';
 import { useMenuCategories, useMenuItems } from '@/hooks/useMenu';
 import { useOrders } from '@/hooks/useOrders';
@@ -22,31 +21,23 @@ interface MockUser {
 }
 
 const AdminDashboardContent: React.FC = () => {
-    const { toast } = useToast();
     const { restaurant } = useRestaurantContext();
     const [activeTab, setActiveTab] = useState<'orders' | 'stats' | 'menu'>('orders');
 
     // Hook pour les commandes en temps réel
-    const { orders, loading: ordersLoading, error: ordersError, getOrderStats } = useOrders(restaurant?.id || '');
+    const { orders, error: ordersError, getOrderStats } = useOrders(restaurant?.id || '');
 
     // Hooks pour le menu
     const {
         categories,
         loading: categoriesLoading,
         error: categoriesError,
-        addCategory,
-        updateCategory,
-        deleteCategory
     } = useMenuCategories(restaurant?.id || '');
 
     const {
         items,
         loading: itemsLoading,
         error: itemsError,
-        addItem,
-        updateItem,
-        deleteItem,
-        getItemsByCategory
     } = useMenuItems(restaurant?.id || '');
 
     // Mock user basé sur le restaurant
@@ -75,7 +66,7 @@ const AdminDashboardContent: React.FC = () => {
     };
 
     // Fonction pour filtrer les commandes par statut (pour compatibilité avec AdminStatsView)
-    const getOrdersByStatus = (status: string) => {
+    const getOrdersByStatus = () => {
         // Puisqu'on n'a plus de système de statut, on peut simuler ou laisser vide
         return [];
     };

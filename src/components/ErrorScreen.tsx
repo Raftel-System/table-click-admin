@@ -59,13 +59,6 @@ const ErrorScreen: React.FC<ErrorScreenProps> = ({ error, slug }) => {
                         </Button>
                     </div>
 
-                    <div className="mt-6 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
-                        <h4 className="text-sm font-semibold text-white mb-2">Restaurants disponibles :</h4>
-                        <ul className="text-xs text-gray-400 space-y-1">
-                            <li><code>/talya-bercy</code> - Café O2 Ice Bercy</li>
-                            <li><code>/restaurant-test</code> - Restaurant Test</li>
-                        </ul>
-                    </div>
                 </CardContent>
             </Card>
         </div>
