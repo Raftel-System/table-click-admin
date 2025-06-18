@@ -1,4 +1,4 @@
-// src/components/admin/AdminOrdersView.tsx - Version Complète avec Filtres
+// src/components/admin/AdminOrdersView.tsx
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,11 +14,9 @@ import { useRestaurantContext } from '@/contexts/RestaurantContext';
 import {
     Printer,
     Clock,
-    Users,
     Package,
     Euro,
     StickyNote,
-    RefreshCw,
     Search,
     Filter,
     Calendar as CalendarIcon,
@@ -26,7 +24,6 @@ import {
     ChevronUp,
     Download,
     TrendingUp,
-    MapPin,
     Coffee,
     Utensils
 } from 'lucide-react';
@@ -43,7 +40,7 @@ interface FilterState {
 const AdminOrdersView: React.FC = () => {
     const { toast } = useToast();
     const { restaurant } = useRestaurantContext();
-    const { orders, loading, error, printTicket, getOrderStats, getOrdersByDate, filterOrders } = useOrders(restaurant?.id || '');
+    const { orders, loading, error, printTicket, getOrderStats } = useOrders(restaurant?.id || '');
     
     // États des filtres (sans statusFilter)
     const [filters, setFilters] = useState<FilterState>({
@@ -64,17 +61,23 @@ const AdminOrdersView: React.FC = () => {
         const now = new Date();
         switch (filters.dateFilter) {
             case 'today':
-                const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-                return { start: startOfDay, end: endOfDay };
+                {
+                    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+                    return { start: startOfDay, end: endOfDay };
+                }
             case 'week':
-                const startOfWeek = new Date(now);
-                startOfWeek.setDate(now.getDate() - now.getDay());
-                startOfWeek.setHours(0, 0, 0, 0);
-                return { start: startOfWeek, end: now };
+                {
+                    const startOfWeek = new Date(now);
+                    startOfWeek.setDate(now.getDate() - now.getDay());
+                    startOfWeek.setHours(0, 0, 0, 0);
+                    return { start: startOfWeek, end: now };
+                }
             case 'month':
-                const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-                return { start: startOfMonth, end: now };
+                {
+                    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+                    return { start: startOfMonth, end: now };
+                }
             case 'custom':
                 // ✅ Validation de la plage personnalisée
                 if (filters.customDateRange.start && filters.customDateRange.end) {
@@ -193,7 +196,7 @@ const AdminOrdersView: React.FC = () => {
                 title: "Ticket imprimé",
                 description: `Ticket pour ${order.mode === 'sur_place' ? `Table ${order.tableNumber}` : `N°${order.numeroClient || 'EMPORTER'}`} envoyé à l'imprimante`
             });
-        } catch (error: any) {
+        } catch (error) {
             toast({
                 title: "Erreur d'impression",
                 description: error.message,

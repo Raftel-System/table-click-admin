@@ -74,7 +74,7 @@ export const useOrders = (restaurantSlug: string) => {
                     const allOrders: Order[] = [];
 
                     if (data) {
-                        // ✅ Parcourir les tables (structure: orders/restaurant/tables/tableX/orderId)
+                        // (structure: orders/restaurant/tables/tableX/orderId)
                         if (data.tables) {
                             Object.entries(data.tables).forEach(([tableId, tableData]: [string, any]) => {
                                 if (tableData && typeof tableData === 'object') {
@@ -198,7 +198,7 @@ export const useOrders = (restaurantSlug: string) => {
     };
 
     // Fonction pour imprimer un ticket
-    const printTicket = async (order: Order, authToken?: string) => {
+    const printTicket = async (order: Order) => {
         try {
             const printData = {
                 table: order.mode === 'sur_place' ? order.tableNumber?.toString() : 'EMPORTER',
