@@ -3,6 +3,7 @@ import './App.css';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import AdminDashboard from '@/pages/AdminDashboard';
 import { Toaster } from 'sonner';
+import AdminNewOrder from './components/admin/AdminNewOrder';
 
 function App() {
     return (
@@ -11,6 +12,7 @@ function App() {
                 <Routes>
                     {/* Route dynamique pour admin dashboard */}
                     <Route path="/:restaurantSlug/" element={<AdminDashboard />} />
+                    <Route path="/:restaurantSlug/commande" element={<AdminNewOrder />} />
                 </Routes>
 
                 <Toaster

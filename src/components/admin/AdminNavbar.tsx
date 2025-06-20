@@ -13,7 +13,8 @@ import {
     Clock,
     TrendingUp,
     Users,
-    ChefHat
+    ChefHat,
+    Plus // ✅ Ajouté pour le bouton nouvelle commande
 } from 'lucide-react';
 
 interface User {
@@ -57,6 +58,13 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const { restaurant, loading: restaurantLoading } = useRestaurantContext();
     const currentTime = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+    // ✅ Fonction pour rediriger vers la nouvelle commande
+    const handleNewOrder = () => {
+        if (restaurant?.id) {
+            window.location.href = `/${restaurant.id}/commande`;
+        }
+    };
 
     const navigationItems = [
         {
@@ -147,6 +155,17 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
                             className="text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-xl p-2"
                         >
                             <Search size={20} />
+                        </Button>
+
+                        {/* ✅ BOUTON NOUVELLE COMMANDE - Toujours visible */}
+                        <Button 
+                            onClick={handleNewOrder}
+                            disabled={!restaurant?.id || restaurantLoading}
+                            className="bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-400 hover:to-green-500 px-4 py-2 rounded-xl font-medium transition-all transform hover:scale-105 shadow-lg"
+                        >
+                            <Plus size={16} className="mr-2" />
+                            <span className="hidden sm:inline">Nouvelle commande</span>
+                            <span className="sm:hidden">+</span>
                         </Button>
 
                         {/* User Profile */}
