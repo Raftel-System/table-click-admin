@@ -317,11 +317,11 @@ export const useOrders = (restaurantSlug: string) => {
 
             console.log('🖨️ Envoi vers imprimante:', {
                 ...printData,
-                serverUrl: `http://${config.serverPrinterIp}:3001/print-ticket`
+                serverUrl: `https://${config.serverPrinterIp}:3001/print-ticket`
             });
 
             // 4. Envoyer la requête au serveur d'impression
-            const response = await fetch(`http://${config.serverPrinterIp}:3001/print-ticket`, {
+            const response = await fetch(`https://${config.serverPrinterIp}:3001/print-ticket`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
