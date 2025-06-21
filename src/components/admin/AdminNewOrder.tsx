@@ -145,7 +145,7 @@ const AdminNewOrder: React.FC = () => {
   }, [categories, selectedCategory]);
 
   // Raccourcis clavier
-  useEffect(() => {
+ /*  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       
@@ -171,12 +171,12 @@ const AdminNewOrder: React.FC = () => {
           setShowVirtualKeyboard(false);
           break;
       }
-    };
+    }; 
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentOrder.cart.length]);
-
+*/
   // Optimisation des items filtrés
   const filteredItems = useMemo(() => {
     return items.filter(item => 
@@ -398,162 +398,239 @@ const AdminNewOrder: React.FC = () => {
     </Dialog>
   );
 
-  // Modal PIN de validation
-  const PinModal = () => (
-    <Dialog open={showPinModal} onOpenChange={setShowPinModal}>
-      <DialogContent className="max-w-md bg-black/95 border-gray-700 text-white">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl">
-            <Shield size={24} className="text-yellow-500" />
-            Code de validation
-          </DialogTitle>
-        </DialogHeader>
-        
-        <div className="space-y-6">
-          <div className="text-center">
-            <Input
-              type="password"
-              value={pinCode}
-              onChange={(e) => setPinCode(e.target.value)}
-              placeholder="Entrez le code PIN"
-              className="text-center text-2xl tracking-widest bg-gray-800 border-gray-600 text-white h-16"
-              maxLength={4}
-            />
+// Modal de confirmation de commande
+const OrderConfirmationModal = () => (
+  <Dialog open={showPinModal} onOpenChange={setShowPinModal}>
+    <DialogContent className="max-w-2xl bg-black/95 border-gray-700 text-white">
+      <DialogHeader>
+        <DialogTitle className="flex items-center gap-2 text-2xl">
+          <CheckCircle2 size={28} className="text-green-400" />
+          Confirmer la commande
+        </DialogTitle>
+      </DialogHeader>
+      
+      <div className="space-y-6">
+        {/* Résumé du service */}
+        <div className="bg-gray-800/50 rounded-2xl p-4 border border-gray-700">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
+                currentOrder.orderType === 'sur_place' 
+                  ? 'bg-blue-500/20 text-blue-400' 
+                  : 'bg-green-500/20 text-green-400'
+              }`}>
+                {currentOrder.orderType === 'sur_place' ? <Coffee size={20} /> : <Package size={20} />}
+              </div>
+              <div>
+                <h3 className="font-semibold text-white">
+                  {currentOrder.orderType === 'sur_place' ? 'Sur place' : 'À emporter'}
+                </h3>
+                <p className="text-sm text-gray-400">
+                  {currentOrder.orderType === 'sur_place' 
+                    ? `Table ${currentOrder.tableNumber}` 
+                    : `Client ${currentOrder.clientNumber}`
+                  }
+                </p>
+              </div>
+            </div>
           </div>
           
-          <div className="grid grid-cols-3 gap-3">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map(num => (
-              <Button
-                key={num}
-                onClick={() => setPinCode(prev => prev.length < 4 ? prev + num : prev)}
-                className="h-14 text-xl bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 rounded-xl"
-              >
-                {num}
-              </Button>
+          {currentOrder.globalNote && (
+            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 mt-3">
+              <div className="flex items-start gap-2">
+                <StickyNote size={16} className="text-yellow-400 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-yellow-400">Instructions spéciales</p>
+                  <p className="text-sm text-gray-300 mt-1">{currentOrder.globalNote}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Liste des articles commandés */}
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+            <ShoppingCart size={20} className="text-green-400" />
+            Articles commandés ({currentOrder.cart.length})
+          </h3>
+          
+          <div className="max-h-64 overflow-y-auto space-y-3 pr-2">
+            {currentOrder.cart.map((item, index) => (
+              <div key={`${item.id}-${item.variant || ''}-${index}`} className="bg-gray-800/30 rounded-xl p-3 border border-gray-700/50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 flex-1">
+                    <span className="text-2xl">{item.emoji}</span>
+                    <div className="flex-1">
+                      <h4 className="font-medium text-white text-sm">{item.nom}</h4>
+                      <div className="flex items-center gap-2 text-xs text-gray-400 mt-1">
+                        <span>{item.quantite} × {item.prix.toFixed(2)}{currency}</span>
+                        <span className="text-green-400 font-medium">
+                          = {(item.quantite * item.prix).toFixed(2)}{currency}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="bg-gray-700/50 rounded-lg px-2 py-1 text-sm font-bold text-white">
+                      ×{item.quantite}
+                    </div>
+                  </div>
+                </div>
+                
+                {item.note && (
+                  <div className="mt-2 bg-blue-500/10 border border-blue-500/30 rounded-lg p-2">
+                    <p className="text-xs text-blue-300 flex items-start gap-1">
+                      <StickyNote size={12} className="mt-0.5" />
+                      {item.note}
+                    </p>
+                  </div>
+                )}
+              </div>
             ))}
-            <Button
-              onClick={() => setPinCode('')}
-              className="h-14 bg-red-600 hover:bg-red-500 text-white rounded-xl"
-            >
-              <X size={20} />
-            </Button>
-            <Button
-              onClick={() => setPinCode(prev => prev.slice(0, -1))}
-              className="h-14 bg-yellow-600 hover:bg-yellow-500 text-white rounded-xl"
-            >
-              <Minus size={20} />
-            </Button>
           </div>
+        </div>
+
+        {/* Total */}
+        <div className="bg-gradient-to-r from-green-500/10 to-green-600/10 border border-green-500/30 rounded-2xl p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xl font-semibold text-white">Total de la commande</span>
+            <div className="text-right">
+              <div className="text-3xl font-bold text-green-400">
+                {currentOrder.total.toFixed(2)}{currency}
+              </div>
+              <div className="text-sm text-gray-400">
+                {currentOrder.cart.reduce((total, item) => total + item.quantite, 0)} article{currentOrder.cart.reduce((total, item) => total + item.quantite, 0) > 1 ? 's' : ''}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Boutons d'action */}
+        <div className="flex gap-4 pt-2">
+          <Button
+            onClick={() => setShowPinModal(false)}
+            variant="outline"
+            className="flex-1 h-14 text-lg border-gray-600 text-gray-300 hover:bg-gray-800 rounded-xl"
+          >
+            <ArrowLeft size={20} className="mr-2" />
+            Modifier
+          </Button>
           
           <Button
             onClick={() => {
-                handleValidateOrder();
-                setShowPinModal(false);
-                setPinCode('');
-              /* if (pinCode === '1234') { // PIN par défaut
-                
-              } else {
-                toast({
-                  title: "Code incorrect",
-                  description: "Veuillez entrer le bon code PIN",
-                  variant: "destructive"
-                });
-                setPinCode('');
-              } */
+              handleValidateOrder();
+              setShowPinModal(false);
             }}
-            disabled={pinCode.length !== 4}
-            className="w-full h-16 text-xl bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white rounded-xl"
+            disabled={loading}
+            className="flex-1 h-14 text-lg bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white rounded-xl shadow-lg transition-all duration-300"
           >
-            <CheckCircle2 size={24} className="mr-2" />
-            Valider la commande
+            {loading ? (
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
+            ) : (
+              <CheckCircle2 size={20} className="mr-2" />
+            )}
+            {loading ? 'Validation...' : 'Confirmer la commande'}
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
-  );
+      </div>
+    </DialogContent>
+  </Dialog>
+);
+// Valider la commande avec le service - VERSION CORRIGÉE
+const handleValidateOrder = async () => {
+  if (currentOrder.cart.length === 0) {
+    toast({
+      title: "Erreur",
+      description: "Veuillez ajouter au moins un article à la commande",
+      variant: "destructive"
+    });
+    return;
+  }
 
-  // Valider la commande avec le service
-  const handleValidateOrder = async () => {
-    if (currentOrder.cart.length === 0) {
-      toast({
-        title: "Erreur",
-        description: "Veuillez ajouter au moins un article à la commande",
-        variant: "destructive"
-      });
-      return;
+  if (currentOrder.orderType === 'sur_place' && !currentOrder.tableNumber.trim()) {
+    toast({
+      title: "Erreur", 
+      description: "Veuillez indiquer le numéro de table",
+      variant: "destructive"
+    });
+    return;
+  }
+
+  if (currentOrder.orderType === 'emporter' && !currentOrder.clientNumber.trim()) {
+    toast({
+      title: "Erreur",
+      description: "Veuillez indiquer le numéro client",
+      variant: "destructive"
+    });
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    const orderData: any = {
+      items: currentOrder.cart.map(item => ({
+        nom: item.nom,
+        prix: item.prix,
+        quantite: item.quantite,
+        ...(item.note?.trim() && { specialInstructions: item.note.trim() })
+      })),
+      total: currentOrder.total,
+      mode: currentOrder.orderType
+    };
+
+    if (currentOrder.orderType === 'sur_place') {
+      orderData.table = currentOrder.tableNumber;
+    } else {
+      orderData.numeroClient = currentOrder.clientNumber;
     }
 
-    if (currentOrder.orderType === 'sur_place' && !currentOrder.tableNumber.trim()) {
-      toast({
-        title: "Erreur", 
-        description: "Veuillez indiquer le numéro de table",
-        variant: "destructive"
-      });
-      return;
+    if (currentOrder.globalNote.trim()) {
+      orderData.note = currentOrder.globalNote.trim();
     }
 
-    if (currentOrder.orderType === 'emporter' && !currentOrder.clientNumber.trim()) {
+    const result = await submitAdminOrder(orderData, restaurantSlug || '');
+
+    if (result.success) {
       toast({
-        title: "Erreur",
-        description: "Veuillez indiquer le numéro client",
-        variant: "destructive"
+        title: "Commande créée ✅",
+        description: `Commande ${currentOrder.orderType === 'sur_place' ? `table ${currentOrder.tableNumber}` : `n°${currentOrder.clientNumber}`} créée avec succès`
       });
-      return;
-    }
 
-    setLoading(true);
-
-    try {
-      const orderData: any = {
-        items: currentOrder.cart.map(item => ({
-          nom: item.nom,
-          prix: item.prix,
-          quantite: item.quantite,
-          ...(item.note?.trim() && { specialInstructions: item.note.trim() })
-        })),
-        total: currentOrder.total,
-        mode: currentOrder.orderType
-      };
-
-      if (currentOrder.orderType === 'sur_place') {
-        orderData.table = currentOrder.tableNumber;
-      } else {
-        orderData.numeroClient = currentOrder.clientNumber;
-      }
-
-      if (currentOrder.globalNote.trim()) {
-        orderData.note = currentOrder.globalNote.trim();
-      }
-
-      const result = await submitAdminOrder(orderData, restaurantSlug || '');
-
-      if (result.success) {
-        toast({
-          title: "Commande créée ✅",
-          description: `Commande ${currentOrder.orderType === 'sur_place' ? `table ${currentOrder.tableNumber}` : `n°${currentOrder.clientNumber}`} créée avec succès`
+      // Au lieu de supprimer la commande, on la vide simplement
+      if (activeOrders.length === 1) {
+        // S'il n'y a qu'une seule commande, on la remet à zéro
+        updateCurrentOrder({
+          cart: [],
+          tableNumber: '',
+          clientNumber: '',
+          globalNote: '',
+          total: 0
         });
-
-        // Supprimer la commande validée
-        removeOrder(currentOrderId);
-        
-        // Nettoyer le localStorage
-        localStorage.removeItem(savedOrdersKey);
-
       } else {
-        throw new Error(result.error || 'Erreur inconnue');
+        // S'il y a plusieurs commandes, on peut supprimer celle-ci
+        removeOrder(currentOrderId);
       }
+      
+      // Nettoyer le localStorage
+      localStorage.removeItem(savedOrdersKey);
 
-    } catch (error: any) {
-      console.error('Erreur création commande:', error);
-      toast({
-        title: "Erreur",
-        description: error.message || "Impossible de créer la commande",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
+    } else {
+      throw new Error(result.error || 'Erreur inconnue');
     }
-  };
+
+  } catch (error: any) {
+    console.error('Erreur création commande:', error);
+    toast({
+      title: "Erreur",
+      description: error.message || "Impossible de créer la commande",
+      variant: "destructive"
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Navigation sécurisée vers le dashboard
   const handleGoToDashboard = () => {
@@ -678,15 +755,7 @@ const AdminNewOrder: React.FC = () => {
               </Button>
             </div>
 
-            {/* Actions rapides */}
-            <div className="flex gap-2 text-sm text-gray-400">
-              <kbd className="px-2 py-1 bg-gray-800 rounded">F1</kbd>
-              <span>Nouvelle commande</span>
-              <kbd className="px-2 py-1 bg-gray-800 rounded">F2</kbd>
-              <span>Vider</span>
-              <kbd className="px-2 py-1 bg-gray-800 rounded">F3</kbd>
-              <span>Valider</span>
-            </div>
+            
           </div>
         </div>
       </header>
@@ -1070,7 +1139,7 @@ const AdminNewOrder: React.FC = () => {
       </div>
 
       {/* Clavier virtuel flottant */}
-      {showVirtualKeyboard && (
+   {/*    {showVirtualKeyboard && (
         <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-4 duration-300">
           <Card className="bg-black/95 border-gray-700 backdrop-blur-xl rounded-3xl shadow-2xl">
             <CardContent className="p-6">
@@ -1116,11 +1185,11 @@ const AdminNewOrder: React.FC = () => {
             </CardContent>
           </Card>
         </div>
-      )}
+      )} */}
 
       {/* Modales */}
       <ItemDetailsModal />
-      <PinModal />
+      <OrderConfirmationModal  />
 
       {/* Indicateur de sauvegarde */}
       {activeOrders.some(order => order.cart.length > 0) && (

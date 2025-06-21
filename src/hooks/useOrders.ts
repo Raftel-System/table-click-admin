@@ -1,6 +1,6 @@
 // src/hooks/useOrders.ts
 import { useState, useEffect } from 'react';
-import { ref, onValue, off } from 'firebase/database';
+import { ref, onValue, off, update } from 'firebase/database';
 import { rtDatabase } from '@/lib/firebase';
 
 export interface OrderItem {
@@ -10,16 +10,24 @@ export interface OrderItem {
     specialInstructions?: string;
 }
 
+// ✅ Type de statut strict
+export type OrderStatus = 'pending' | 'served' | 'cancelled';
+
 export interface Order {
     id: string;
     createdAt: string;
-    status: string;
+    status: OrderStatus; // ✅ Type strict au lieu de string
     mode: 'sur_place' | 'emporter';
     tableNumber?: number;
     numeroClient?: number;
     total: number;
     items: OrderItem[];
     noteCommande?: string;
+    // ✅ Nouveaux champs pour le suivi des statuts
+    updatedAt?: string; // Date de dernière modification
+    servedAt?: string; // Date de service
+    cancelledAt?: string; // Date d'annulation
+    cancellationReason?: string; // Raison de l'annulation
     // Champs calculés
     tablePath?: string; // 'tables' ou 'takeaway'
     tableId?: string; // numéro de table ou 'takeaway'
@@ -32,6 +40,10 @@ export interface OrderStats {
     takeawayOrders: number;
     averageOrderValue: number;
     ordersThisHour: number;
+    // ✅ Nouvelles stats par statut
+    pendingOrders: number;
+    servedOrders: number;
+    cancelledOrders: number;
 }
 
 interface OrderData {
@@ -42,9 +54,12 @@ interface OrderData {
     }>;
     total: number;
     createdAt: string;
+    status?: OrderStatus; // ✅ Optionnel pour compatibilité
     numeroClient?: string;
     noteCommande?: string;
-    // Ajoutez d'autres propriétés selon vos données
+    updatedAt?: string;
+    servedAt?: string;
+    cancelledAt?: string;
 }
 
 export const useOrders = (restaurantSlug: string) => {
@@ -60,7 +75,6 @@ export const useOrders = (restaurantSlug: string) => {
 
         console.log('🔄 Initializing real-time orders listener for:', restaurantSlug);
 
-        // ✅ Utiliser la vraie structure Firebase: orders/${restaurantSlug}
         const ordersRef = ref(rtDatabase, `orders/${restaurantSlug}`);
 
         setLoading(true);
@@ -74,7 +88,7 @@ export const useOrders = (restaurantSlug: string) => {
                     const allOrders: Order[] = [];
 
                     if (data) {
-                        // (structure: orders/restaurant/tables/tableX/orderId)
+                        // Parcourir les tables
                         if (data.tables) {
                             Object.entries(data.tables).forEach(([tableId, tableData]: [string, any]) => {
                                 if (tableData && typeof tableData === 'object') {
@@ -83,6 +97,7 @@ export const useOrders = (restaurantSlug: string) => {
                                             allOrders.push({
                                                 id: orderId,
                                                 ...orderData,
+                                                status: orderData.status || 'pending', // ✅ Défaut pending
                                                 mode: 'sur_place' as const,
                                                 tableNumber: parseInt(tableId) || 0,
                                                 tablePath: 'tables',
@@ -94,10 +109,9 @@ export const useOrders = (restaurantSlug: string) => {
                             });
                         }
 
-                        // (structure: orders/restaurant/takeaway/orderId)
+                        // Parcourir les commandes à emporter
                         if (data.takeaway) {
                             Object.entries(data.takeaway).forEach(([orderId, orderData]) => {
-                                // Vérification que orderData correspond à OrderData
                                 if (orderData &&
                                     typeof orderData === 'object' &&
                                     'items' in orderData &&
@@ -108,10 +122,10 @@ export const useOrders = (restaurantSlug: string) => {
                                     allOrders.push({
                                         id: orderId,
                                         ...typedOrderData,
+                                        status: typedOrderData.status || 'pending', // ✅ Défaut pending
                                         mode: 'emporter' as const,
                                         tablePath: 'takeaway',
                                         tableId: 'takeaway',
-                                        status: 'pending',
                                         numeroClient: typedOrderData.numeroClient ? Number(typedOrderData.numeroClient) : undefined
                                     });
                                 }
@@ -139,13 +153,62 @@ export const useOrders = (restaurantSlug: string) => {
             }
         );
 
-        // ✅ Cleanup correct
         return () => {
             off(ordersRef, 'value', unsubscribe);
         };
     }, [restaurantSlug]);
 
-    // Calculer les statistiques des commandes
+    // ✅ Fonction pour mettre à jour le statut d'une commande
+    const updateOrderStatus = async (orderId: string, newStatus: OrderStatus, reason?: string): Promise<void> => {
+        if (!restaurantSlug) throw new Error('Restaurant slug requis');
+
+        try {
+            // Trouver la commande pour connaître son chemin
+            const order = orders.find(o => o.id === orderId);
+            if (!order) throw new Error('Commande introuvable');
+
+            // ✅ Validation des transitions de statut
+            const validTransitions: Record<OrderStatus, OrderStatus[]> = {
+                pending: ['served', 'cancelled'],
+                served: [], // Aucune transition possible depuis served
+                cancelled: [] // Aucune transition possible depuis cancelled
+            };
+
+            if (!validTransitions[order.status].includes(newStatus)) {
+                throw new Error(`Transition non autorisée: ${order.status} → ${newStatus}`);
+            }
+
+            const orderPath = `orders/${restaurantSlug}/${order.tablePath}/${order.tableId}/${orderId}`;
+            const now = new Date().toISOString();
+
+            // Données à mettre à jour
+            const updateData: Record<string, any> = {
+                status: newStatus,
+                updatedAt: now
+            };
+
+            // Ajouter timestamp et raison spécifique selon le statut
+            if (newStatus === 'served') {
+                updateData.servedAt = now;
+            } else if (newStatus === 'cancelled') {
+                updateData.cancelledAt = now;
+                if (reason) {
+                    updateData.cancellationReason = reason;
+                }
+            }
+
+            console.log(`🔄 Mise à jour statut commande ${orderId}: ${order.status} → ${newStatus}`, reason ? `(${reason})` : '');
+
+            await update(ref(rtDatabase, orderPath), updateData);
+
+            console.log(`✅ Statut mis à jour avec succès pour ${orderId}`);
+        } catch (error) {
+            console.error('❌ Erreur mise à jour statut:', error);
+            throw new Error(`Impossible de mettre à jour le statut: ${error.message}`);
+        }
+    };
+
+    // ✅ Statistiques mises à jour avec statuts
     const getOrderStats = (): OrderStats => {
         const today = new Date();
         const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -165,14 +228,42 @@ export const useOrders = (restaurantSlug: string) => {
         const tableOrders = todayOrders.filter(order => order.mode === 'sur_place').length;
         const takeawayOrders = todayOrders.filter(order => order.mode === 'emporter').length;
 
+        // ✅ Stats par statut
+        const pendingOrders = todayOrders.filter(order => order.status === 'pending').length;
+        const servedOrders = todayOrders.filter(order => order.status === 'served').length;
+        const cancelledOrders = todayOrders.filter(order => order.status === 'cancelled').length;
+
         return {
             totalOrders: todayOrders.length,
             totalRevenue,
             tableOrders,
             takeawayOrders,
             averageOrderValue: todayOrders.length > 0 ? totalRevenue / todayOrders.length : 0,
-            ordersThisHour: thisHourOrders.length
+            ordersThisHour: thisHourOrders.length,
+            pendingOrders,
+            servedOrders,
+            cancelledOrders
         };
+    };
+
+    // ✅ Filtres par statut
+    const getOrdersByStatus = (status: OrderStatus | 'all' = 'all'): Order[] => {
+        if (status === 'all') return orders;
+        return orders.filter(order => order.status === status);
+    };
+
+    const getPendingOrders = (): Order[] => {
+        return orders.filter(order => order.status === 'pending')
+            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    };
+
+    const getCompletedOrders = (): Order[] => {
+        return orders.filter(order => order.status === 'served' || order.status === 'cancelled')
+            .sort((a, b) => {
+                const dateA = new Date(a.servedAt || a.cancelledAt || a.updatedAt || a.createdAt);
+                const dateB = new Date(b.servedAt || b.cancelledAt || b.updatedAt || b.createdAt);
+                return dateB.getTime() - dateA.getTime();
+            });
     };
 
     // Fonction pour grouper les commandes par date
@@ -186,7 +277,6 @@ export const useOrders = (restaurantSlug: string) => {
             return acc;
         }, {} as Record<string, Order[]>);
 
-        // Convertir en tableau trié par date (plus récent en premier)
         return Object.entries(grouped)
             .sort(([dateA], [dateB]) => new Date(dateB).getTime() - new Date(dateA).getTime())
             .map(([date, orders]) => ({
@@ -198,7 +288,7 @@ export const useOrders = (restaurantSlug: string) => {
     };
 
     // Fonction pour imprimer un ticket
-    const printTicket = async (order: Order) => {
+    const printTicket = async (order: Order): Promise<{ success: boolean; result?: any }> => {
         try {
             const printData = {
                 table: order.mode === 'sur_place' ? order.tableNumber?.toString() : 'EMPORTER',
@@ -233,7 +323,6 @@ export const useOrders = (restaurantSlug: string) => {
         } catch (error: any) {
             console.error('❌ Erreur impression ticket:', error);
 
-            // Messages d'erreur plus explicites
             let errorMessage = 'Erreur lors de l\'impression';
             if (error.name === 'AbortError') {
                 errorMessage = 'Timeout: L\'imprimante ne répond pas';
@@ -251,7 +340,7 @@ export const useOrders = (restaurantSlug: string) => {
     const filterOrders = (
         searchTerm: string = '',
         dateRange: { start?: Date; end?: Date } = {},
-        statusFilter: string = 'all',
+        statusFilter: OrderStatus | 'all' = 'all',
         typeFilter: string = 'all',
         amountRange: { min?: number; max?: number } = {}
     ) => {
@@ -283,7 +372,7 @@ export const useOrders = (restaurantSlug: string) => {
             });
         }
 
-        // Filtre par statut
+        // ✅ Filtre par statut
         if (statusFilter !== 'all') {
             filtered = filtered.filter(order => order.status === statusFilter);
         }
@@ -312,6 +401,11 @@ export const useOrders = (restaurantSlug: string) => {
         getOrderStats,
         getOrdersByDate,
         filterOrders,
-        printTicket
+        printTicket,
+        // ✅ Nouvelles fonctions pour les statuts
+        updateOrderStatus,
+        getOrdersByStatus,
+        getPendingOrders,
+        getCompletedOrders
     };
 };
