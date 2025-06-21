@@ -321,7 +321,7 @@ export const useOrders = (restaurantSlug: string) => {
             });
 
             // 4. Envoyer la requête au serveur d'impression
-            const response = await fetch(`https://${config.serverPrinterIp}:3001/print-ticket`, {
+            const response = await fetch(`https://early-colleague-dealer-exam.trycloudflare.com/print-ticket`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
