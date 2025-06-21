@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { ref, onValue, off, update } from 'firebase/database';
 import { rtDatabase } from '@/lib/firebase';
+import {getRestaurantConfig} from "@/hooks/useRestaurant.ts";
 
 export interface OrderItem {
     nom: string;
@@ -290,7 +291,21 @@ export const useOrders = (restaurantSlug: string) => {
     // Fonction pour imprimer un ticket
     const printTicket = async (order: Order): Promise<{ success: boolean; result?: any }> => {
         try {
+            // 1. Récupérer la configuration du restaurant
+            const config = await getRestaurantConfig(restaurantSlug);
+
+            if (!config) {
+                throw new Error('Configuration du restaurant introuvable');
+            }
+
+            // 2. Vérifier que les IPs sont configurées
+            if (!config.printerIp || !config.serverPrinterIp) {
+                throw new Error('Configuration d\'impression incomplète (printerIp ou serverPrinterIp manquant)');
+            }
+
+            // 3. Préparer les données d'impression
             const printData = {
+                ip: config.printerIp,
                 table: order.mode === 'sur_place' ? order.tableNumber?.toString() : 'EMPORTER',
                 commandeId: order.id,
                 produits: order.items.map(item => ({
@@ -300,9 +315,13 @@ export const useOrders = (restaurantSlug: string) => {
                 }))
             };
 
-            console.log('🖨️ Envoi vers imprimante:', printData);
+            console.log('🖨️ Envoi vers imprimante:', {
+                ...printData,
+                serverUrl: `http://${config.serverPrinterIp}:3001/print-ticket`
+            });
 
-            const response = await fetch(`http://localhost:3001/print-ticket`, {
+            // 4. Envoyer la requête au serveur d'impression
+            const response = await fetch(`http://${config.serverPrinterIp}:3001/print-ticket`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -335,6 +354,7 @@ export const useOrders = (restaurantSlug: string) => {
             throw new Error(errorMessage);
         }
     };
+
 
     // Fonction pour filtrer les commandes
     const filterOrders = (

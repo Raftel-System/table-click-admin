@@ -10,12 +10,33 @@ export interface RestaurantConfig {
     adresse: string;
     telephone: string;
     horaires: Record<string, any>;
+    printerIp?: string;
+    serverPrinterIp?: string;
+    kitchenMode?: string;
+    logoUrl?: string;
+    dateCreation?: string;
 }
 
 export interface Restaurant {
     id: string;
     config: RestaurantConfig;
 }
+
+export const getRestaurantConfig = async (slug: string): Promise<RestaurantConfig | null> => {
+    try {
+        const configRef = doc(db, 'restaurants', slug, 'settings', 'config');
+        const configSnap = await getDoc(configRef);
+
+        if (configSnap.exists()) {
+            return configSnap.data() as RestaurantConfig;
+        }
+        return null;
+    } catch (error) {
+        console.error('❌ Erreur lors de la récupération de la config:', error);
+        return null;
+    }
+};
+
 
 export const useRestaurant = (slug: string) => {
     const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
@@ -33,15 +54,10 @@ export const useRestaurant = (slug: string) => {
                 setLoading(true);
                 setError(null);
 
-                // Créer la référence vers le document de configuration
-                const configRef = doc(db, 'restaurants', slug, 'settings', 'config');
+                // Utiliser la fonction utilitaire
+                const configData = await getRestaurantConfig(slug);
 
-                // Récupérer le document
-                const configSnap = await getDoc(configRef);
-
-                if (configSnap.exists()) {
-                    const configData = configSnap.data() as RestaurantConfig;
-
+                if (configData) {
                     setRestaurant({
                         id: slug,
                         config: configData
@@ -62,6 +78,7 @@ export const useRestaurant = (slug: string) => {
 
     return { restaurant, loading, error };
 };
+
 
 // Hook pour vérifier si un restaurant existe
 export const useRestaurantExists = (slug: string) => {
