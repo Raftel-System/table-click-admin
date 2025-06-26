@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import AdminDashboard from '@/pages/AdminDashboard';
 import { Toaster } from 'sonner';
 import AdminNewOrder from './components/admin/AdminNewOrder';
+import LoginPage from "@/pages/LoginPage";
 
 function App() {
     return (
@@ -11,6 +12,7 @@ function App() {
             <div className="min-h-screen">
                 <Routes>
                     {/* Route dynamique pour admin dashboard */}
+                    <Route path="/" element={<LoginPage />} />
                     <Route path="/:restaurantSlug/" element={<AdminDashboard />} />
                     <Route path="/:restaurantSlug/commande" element={<AdminNewOrder />} />
                 </Routes>
