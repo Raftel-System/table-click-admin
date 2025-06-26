@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMenuCategories, useMenuItems, type MenuItem } from '@/hooks/useMenu';
-import { useRestaurant } from '@/hooks/useRestaurant';
+import {getRestaurantConfig, useRestaurant} from '@/hooks/useRestaurant';
 import { useToast } from '@/hooks/useToast';
 import { submitAdminOrder } from '@/services/ordersService';
 import { 
@@ -535,100 +535,189 @@ const OrderConfirmationModal = () => (
     </DialogContent>
   </Dialog>
 );
-// Valider la commande avec le service - VERSION CORRIGÉE
-const handleValidateOrder = async () => {
-  if (currentOrder.cart.length === 0) {
-    toast({
-      title: "Erreur",
-      description: "Veuillez ajouter au moins un article à la commande",
-      variant: "destructive"
-    });
-    return;
-  }
-
-  if (currentOrder.orderType === 'sur_place' && !currentOrder.tableNumber.trim()) {
-    toast({
-      title: "Erreur", 
-      description: "Veuillez indiquer le numéro de table",
-      variant: "destructive"
-    });
-    return;
-  }
-
-  if (currentOrder.orderType === 'emporter' && !currentOrder.clientNumber.trim()) {
-    toast({
-      title: "Erreur",
-      description: "Veuillez indiquer le numéro client",
-      variant: "destructive"
-    });
-    return;
-  }
-
-  setLoading(true);
-
-  try {
-    const orderData: any = {
-      items: currentOrder.cart.map(item => ({
-        nom: item.nom,
-        prix: item.prix,
-        quantite: item.quantite,
-        ...(item.note?.trim() && { specialInstructions: item.note.trim() })
-      })),
-      total: currentOrder.total,
-      mode: currentOrder.orderType
-    };
-
-    if (currentOrder.orderType === 'sur_place') {
-      orderData.table = currentOrder.tableNumber;
-    } else {
-      orderData.numeroClient = currentOrder.clientNumber;
-    }
-
-    if (currentOrder.globalNote.trim()) {
-      orderData.note = currentOrder.globalNote.trim();
-    }
-
-    const result = await submitAdminOrder(orderData, restaurantSlug || '');
-
-    if (result.success) {
+// Valider la commande avec le service
+  const handleValidateOrder = async () => {
+    if (currentOrder.cart.length === 0) {
       toast({
-        title: "Commande créée ✅",
-        description: `Commande ${currentOrder.orderType === 'sur_place' ? `table ${currentOrder.tableNumber}` : `n°${currentOrder.clientNumber}`} créée avec succès`
+        title: "Erreur",
+        description: "Veuillez ajouter au moins un article à la commande",
+        variant: "destructive"
       });
-
-      // Au lieu de supprimer la commande, on la vide simplement
-      if (activeOrders.length === 1) {
-        // S'il n'y a qu'une seule commande, on la remet à zéro
-        updateCurrentOrder({
-          cart: [],
-          tableNumber: '',
-          clientNumber: '',
-          globalNote: '',
-          total: 0
-        });
-      } else {
-        // S'il y a plusieurs commandes, on peut supprimer celle-ci
-        removeOrder(currentOrderId);
-      }
-      
-      // Nettoyer le localStorage
-      localStorage.removeItem(savedOrdersKey);
-
-    } else {
-      throw new Error(result.error || 'Erreur inconnue');
+      return;
     }
 
-  } catch (error: any) {
-    console.error('Erreur création commande:', error);
-    toast({
-      title: "Erreur",
-      description: error.message || "Impossible de créer la commande",
-      variant: "destructive"
-    });
-  } finally {
-    setLoading(false);
-  }
-};
+    if (currentOrder.orderType === 'sur_place' && !currentOrder.tableNumber.trim()) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez indiquer le numéro de table",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (currentOrder.orderType === 'emporter' && !currentOrder.clientNumber.trim()) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez indiquer le numéro client",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const orderData: any = {
+        items: currentOrder.cart.map(item => ({
+          nom: item.nom,
+          prix: item.prix,
+          quantite: item.quantite,
+          ...(item.note?.trim() && { specialInstructions: item.note.trim() })
+        })),
+        total: currentOrder.total,
+        mode: currentOrder.orderType
+      };
+
+      if (currentOrder.orderType === 'sur_place') {
+        orderData.table = currentOrder.tableNumber;
+      } else {
+        orderData.numeroClient = currentOrder.clientNumber;
+      }
+
+      if (currentOrder.globalNote.trim()) {
+        orderData.note = currentOrder.globalNote.trim();
+      }
+
+      const result = await submitAdminOrder(orderData, restaurantSlug || '');
+
+      if (result.success) {
+        // ✅ 1. Toast de succès immédiat
+        toast({
+          title: "Commande créée ✅",
+          description: `Commande ${currentOrder.orderType === 'sur_place' ? `table ${currentOrder.tableNumber}` : `n°${currentOrder.clientNumber}`} créée avec succès`
+        });
+
+        // ✅ 2. IMPRESSION AUTOMATIQUE - En arrière-plan sans bloquer l'UI
+        const orderId = result.orderId || `order_${Date.now()}`;
+
+        // Lancer l'impression en fire-and-forget
+        (async () => {
+          try {
+            console.log('🖨️ Démarrage impression automatique pour commande:', orderId);
+
+            // Récupérer la configuration du restaurant
+            const config = await getRestaurantConfig(restaurantSlug || '');
+
+            if (!config || !config.printerIp) {
+              console.warn('⚠️ Configuration imprimante manquante - impression ignorée');
+              return;
+            }
+
+            // Préparer les données d'impression complètes
+            const printData = {
+              ip: config.printerIp,
+              restaurantSlug: restaurantSlug,
+              commandeId: orderId,
+              type: currentOrder.orderType,
+              table: currentOrder.orderType === 'sur_place' ? currentOrder.tableNumber : 'EMPORTER',
+              numeroClient: currentOrder.orderType === 'emporter' ? currentOrder.clientNumber : undefined,
+              total: currentOrder.total,
+              currency: currency,
+              createdAt: new Date().toISOString(),
+              // ✅ Note globale de la commande
+              ...(currentOrder.globalNote.trim() && {
+                globalNote: currentOrder.globalNote.trim()
+              }),
+              // ✅ Articles avec toutes les données nécessaires
+              produits: currentOrder.cart.map(item => ({
+                nom: item.nom,
+                quantite: item.quantite,
+                prix: item.prix,
+                emoji: item.emoji, // ✅ Inclure l'emoji
+                // ✅ Instructions spéciales par article
+                ...(item.note?.trim() && { specialInstructions: item.note.trim() })
+              }))
+            };
+
+            console.log('🖨️ Envoi vers imprimante:', {
+              ...printData,
+              serverUrl: 'https://zeus-lab.tailfdaef5.ts.net/print-ticket'
+            });
+
+            // Envoyer la requête au serveur d'impression
+            const response = await fetch('https://zeus-lab.tailfdaef5.ts.net/print-ticket', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ma-cle-secrete'
+              },
+              body: JSON.stringify(printData),
+              signal: AbortSignal.timeout(15000)
+            });
+
+            if (!response.ok) {
+              throw new Error(`Erreur serveur impression: ${response.status} ${response.statusText}`);
+            }
+
+            const printResult = await response.json();
+            console.log('✅ Ticket imprimé avec succès:', printResult);
+
+            // Toast de confirmation d'impression
+            toast({
+              title: "Ticket imprimé 🖨️",
+              description: `Ticket ${currentOrder.orderType === 'sur_place' ?
+                  `table ${currentOrder.tableNumber}` :
+                  `n°${currentOrder.clientNumber}`
+              } envoyé à l'imprimante`,
+              duration: 3000
+            });
+
+          } catch (printError: any) {
+            console.error('❌ Erreur impression:', printError);
+
+            // Toast d'erreur d'impression (non bloquant)
+            toast({
+              title: "Avertissement d'impression ⚠️",
+              description: `Commande créée mais impression échouée: ${printError.message || 'Erreur inconnue'}`,
+              variant: "destructive",
+              duration: 6000
+            });
+          }
+        })();
+
+        // ✅ 3. Nettoyer l'interface utilisateur (sans attendre l'impression)
+        if (activeOrders.length === 1) {
+          // S'il n'y a qu'une seule commande, on la remet à zéro
+          updateCurrentOrder({
+            cart: [],
+            tableNumber: '',
+            clientNumber: '',
+            globalNote: '',
+            total: 0
+          });
+        } else {
+          // S'il y a plusieurs commandes, on peut supprimer celle-ci
+          removeOrder(currentOrderId);
+        }
+
+        // Nettoyer le localStorage
+        localStorage.removeItem(savedOrdersKey);
+
+      } else {
+        throw new Error(result.error || 'Erreur inconnue');
+      }
+
+    } catch (error: any) {
+      console.error('❌ Erreur création commande:', error);
+      toast({
+        title: "Erreur",
+        description: error.message || "Impossible de créer la commande",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Navigation sécurisée vers le dashboard
   const handleGoToDashboard = () => {
@@ -723,37 +812,37 @@ const handleValidateOrder = async () => {
             </div>
 
             {/* Onglets commandes */}
-            <div className="flex gap-2">
-              {activeOrders.map((order) => (
-                <Button
-                  key={order.id}
-                  onClick={() => setCurrentOrderId(order.id)}
-                  variant={currentOrderId === order.id ? "default" : "outline"}
-                  className={`relative px-4 py-2 rounded-xl transition-all duration-200 ${
-                    currentOrderId === order.id
-                      ? 'bg-yellow-500 text-black'
-                      : 'border-gray-600 text-gray-300 hover:bg-gray-800'
-                  }`}
-                >
-                  {order.name}
-                  {order.cart.length > 0 && (
-                    <div className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                      {order.cart.length}
-                    </div>
-                  )}
-                </Button>
-              ))}
-              
-              <Button
-                onClick={addNewOrder}
-                variant="outline"
-                className="border-gray-600 text-gray-300 hover:bg-gray-800 rounded-xl px-3 py-2"
-              >
-                <Plus size={16} />
-              </Button>
-            </div>
+            {/*<div className="flex gap-2">*/}
+            {/*  {activeOrders.map((order) => (*/}
+            {/*    <Button*/}
+            {/*      key={order.id}*/}
+            {/*      onClick={() => setCurrentOrderId(order.id)}*/}
+            {/*      variant={currentOrderId === order.id ? "default" : "outline"}*/}
+            {/*      className={`relative px-4 py-2 rounded-xl transition-all duration-200 ${*/}
+            {/*        currentOrderId === order.id*/}
+            {/*          ? 'bg-yellow-500 text-black'*/}
+            {/*          : 'border-gray-600 text-gray-300 hover:bg-gray-800'*/}
+            {/*      }`}*/}
+            {/*    >*/}
+            {/*      {order.name}*/}
+            {/*      {order.cart.length > 0 && (*/}
+            {/*        <div className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">*/}
+            {/*          {order.cart.length}*/}
+            {/*        </div>*/}
+            {/*      )}*/}
+            {/*    </Button>*/}
+            {/*  ))}*/}
 
-            
+            {/*  /!*<Button*!/*/}
+            {/*  /!*  onClick={addNewOrder}*!/*/}
+            {/*  /!*  variant="outline"*!/*/}
+            {/*  /!*  className="border-gray-600 text-gray-300 hover:bg-gray-800 rounded-xl px-3 py-2"*!/*/}
+            {/*  /!*>*!/*/}
+            {/*  /!*  <Plus size={16} />*!/*/}
+            {/*  /!*</Button>*!/*/}
+            {/*</div>*/}
+
+
           </div>
         </div>
       </header>
@@ -932,13 +1021,13 @@ const handleValidateOrder = async () => {
                     <Coffee size={20} className="text-blue-400" />
                     <span className="text-white font-medium">Sur place</span>
                   </div>
-                  <Switch
-                    checked={currentOrder.orderType === 'sur_place'}
-                    onCheckedChange={(checked) => 
-                      updateCurrentOrder({ orderType: checked ? 'sur_place' : 'emporter' })
-                    }
-                    className="data-[state=checked]:bg-blue-500"
-                  />
+                  {/*<Switch*/}
+                  {/*  checked={currentOrder.orderType === 'sur_place'}*/}
+                  {/*  onCheckedChange={(checked) => */}
+                  {/*    updateCurrentOrder({ orderType: checked ? 'sur_place' : 'emporter' })*/}
+                  {/*  }*/}
+                  {/*  className="data-[state=checked]:bg-blue-500"*/}
+                  {/*/>*/}
                 </div>
 
                 {/* Champ dynamique selon le type */}
@@ -988,20 +1077,20 @@ const handleValidateOrder = async () => {
                   </div>
                 </div>
 
-                {/* Note globale */}
-                <div className="space-y-3">
-                  <Label className="text-white font-medium flex items-center gap-2">
-                    <StickyNote size={16} className="text-yellow-400" />
-                    Instructions spéciales
-                  </Label>
-                  <Textarea
-                    value={currentOrder.globalNote}
-                    onChange={(e) => updateCurrentOrder({ globalNote: e.target.value })}
-                    placeholder="Allergies, préférences de cuisson..."
-                    className="bg-gray-800/50 border-gray-600 text-white rounded-2xl resize-none"
-                    rows={3}
-                  />
-                </div>
+                {/*/!* Note globale *!/*/}
+                {/*<div className="space-y-3">*/}
+                {/*  <Label className="text-white font-medium flex items-center gap-2">*/}
+                {/*    <StickyNote size={16} className="text-yellow-400" />*/}
+                {/*    Instructions spéciales*/}
+                {/*  </Label>*/}
+                {/*  <Textarea*/}
+                {/*    value={currentOrder.globalNote}*/}
+                {/*    onChange={(e) => updateCurrentOrder({ globalNote: e.target.value })}*/}
+                {/*    placeholder="Allergies, préférences de cuisson..."*/}
+                {/*    className="bg-gray-800/50 border-gray-600 text-white rounded-2xl resize-none"*/}
+                {/*    rows={3}*/}
+                {/*  />*/}
+                {/*</div>*/}
               </CardContent>
             </Card>
 
@@ -1127,11 +1216,11 @@ const handleValidateOrder = async () => {
               {loading ? 'Validation...' : 'Valider la commande'}
             </Button>
 
-            {/* Raccourci PIN visible */}
-            <div className="text-center text-xs text-gray-500 space-y-1">
-              <p>Code PIN par défaut: 1234</p>
-              <p>F3 pour validation rapide</p>
-            </div>
+            {/*/!* Raccourci PIN visible *!/*/}
+            {/*<div className="text-center text-xs text-gray-500 space-y-1">*/}
+            {/*  <p>Code PIN par défaut: 1234</p>*/}
+            {/*  <p>F3 pour validation rapide</p>*/}
+            {/*</div>*/}
           </div>
         </div>
       </div>
@@ -1189,15 +1278,15 @@ const handleValidateOrder = async () => {
       <ItemDetailsModal />
       <OrderConfirmationModal  />
 
-      {/* Indicateur de sauvegarde */}
-      {activeOrders.some(order => order.cart.length > 0) && (
-        <div className="fixed bottom-6 left-6 bg-yellow-500/10 border border-yellow-500/50 rounded-2xl px-4 py-2 backdrop-blur-xl">
-          <div className="flex items-center gap-2 text-sm">
-            <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
-            <span className="text-yellow-400">Commandes sauvegardées automatiquement</span>
-          </div>
-        </div>
-      )}
+      {/*/!* Indicateur de sauvegarde *!/*/}
+      {/*{activeOrders.some(order => order.cart.length > 0) && (*/}
+      {/*  <div className="fixed bottom-6 left-6 bg-yellow-500/10 border border-yellow-500/50 rounded-2xl px-4 py-2 backdrop-blur-xl">*/}
+      {/*    <div className="flex items-center gap-2 text-sm">*/}
+      {/*      <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>*/}
+      {/*      <span className="text-yellow-400">Commandes sauvegardées automatiquement</span>*/}
+      {/*    </div>*/}
+      {/*  </div>*/}
+      {/*)}*/}
     </div>
   );
 };

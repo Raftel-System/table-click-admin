@@ -27,7 +27,7 @@ import {
     CreditCard,
     Ban,
     TrendingUp,
-    Banknote
+    Banknote, ShoppingCart
 } from 'lucide-react';
 
 interface StatusChangeRequest {
@@ -199,7 +199,7 @@ const AdminOrdersView: React.FC = () => {
     // ✅ Composant carte de commande selon le workflow
     const OrderCard: React.FC<{ order: Order; activeTab: string }> = ({ order, activeTab }) => {
         const isPrinting = printingOrderId === order.id;
-        
+
         // ✅ Actions disponibles selon le statut et l'onglet actuel
         const availableActions = {
             pending: ['served', 'cancelled', 'print'],
@@ -209,153 +209,142 @@ const AdminOrdersView: React.FC = () => {
 
         return (
             <Card className={`border-gray-700 transition-all duration-200 shadow-lg ${
-                order.status === 'pending' 
-                    ? 'bg-yellow-500/5 hover:border-yellow-600 hover:scale-[1.02] hover:shadow-xl border-yellow-500/30' 
+                order.status === 'pending'
+                    ? 'bg-yellow-500/5 hover:border-yellow-600 hover:scale-[1.02] hover:shadow-xl border-yellow-500/30'
                     : order.status === 'served'
-                    ? 'bg-green-500/5 hover:border-green-600 hover:scale-[1.02] hover:shadow-xl border-green-500/30'
-                    : order.status === 'paid'
-                    ? 'bg-blue-500/5 hover:border-blue-600 hover:scale-[1.02] hover:shadow-xl border-blue-500/30'
-                    : 'bg-gray-800/30 opacity-90'
+                        ? 'bg-green-500/5 hover:border-green-600 hover:scale-[1.02] hover:shadow-xl border-green-500/30'
+                        : order.status === 'paid'
+                            ? 'bg-blue-500/5 hover:border-blue-600 hover:scale-[1.02] hover:shadow-xl border-blue-500/30'
+                            : 'bg-gray-500/5 hover:border-gray-600 hover:scale-[1.02] hover:shadow-xl border-gray-500/30'
             }`}>
-                <CardContent className="p-4">
-                    {/* Header avec statut */}
-                    <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-1 text-gray-400">
-                                {order.mode === 'sur_place' ? <Coffee size={16} /> : <Package size={16} />}
+                <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
+                                order.mode === 'sur_place'
+                                    ? 'bg-blue-500/20 text-blue-400'
+                                    : 'bg-green-500/20 text-green-400'
+                            }`}>
+                                {order.mode === 'sur_place' ? <Coffee size={18} /> : <Package size={18} />}
                             </div>
                             <div>
-                                <div className="font-medium text-white text-sm">
-                                    {order.mode === 'sur_place' 
-                                        ? `Table ${order.tableNumber}` 
+                                <h3 className="font-semibold text-white">
+                                    {order.mode === 'sur_place' ? 'Sur place' : 'À emporter'}
+                                </h3>
+                                <p className="text-sm text-gray-400">
+                                    {order.mode === 'sur_place'
+                                        ? `Table ${order.tableNumber}`
                                         : `N°${order.numeroClient || 'EMPORTER'}`
                                     }
-                                </div>
-                                <div className="text-xs text-gray-400">
-                                    {order.id.substring(0, 8)}...
-                                </div>
+                                </p>
                             </div>
                         </div>
-
                         <StatusBadge status={order.status} />
                     </div>
+                </CardHeader>
 
-                    {/* Informations temporelles améliorées */}
-                    <div className="flex items-center gap-4 mb-3 text-xs text-gray-400">
-                        <div className="flex items-center gap-1">
-                            <Clock size={12} />
-                            <span>Commandé {new Date(order.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                <CardContent className="space-y-4">
+                    {/* ✅ Liste des articles avec instructions spéciales */}
+                    <div className="space-y-3">
+                        <h4 className="text-sm font-medium text-gray-300 flex items-center gap-2">
+                            <ShoppingCart size={14} />
+                            Articles ({order.items.length})
+                        </h4>
+
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {order.items.map((item, index) => (
+                                <div key={index} className="bg-gray-800/30 rounded-lg p-3 border border-gray-700/50">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-lg">🍽️</span> {/* Emoji par défaut */}
+                                                <span className="font-medium text-white text-sm">{item.nom}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-xs text-gray-400 mt-1">
+                                                <span>×{item.quantite}</span>
+                                                {item.prix && (
+                                                    <>
+                                                        <span>•</span>
+                                                        <span>{item.prix.toFixed(2)}€</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="bg-gray-700/50 rounded-md px-2 py-1 text-xs font-bold text-white">
+                                            ×{item.quantite}
+                                        </div>
+                                    </div>
+
+                                    {/* ✅ Affichage des instructions spéciales par article */}
+                                    {item.specialInstructions && (
+                                        <div className="mt-2 bg-orange-500/10 border border-orange-500/30 rounded-md p-2">
+                                            <div className="flex items-start gap-2">
+                                                <StickyNote size={12} className="text-orange-400 mt-0.5 flex-shrink-0" />
+                                                <p className="text-xs text-orange-300 leading-relaxed">
+                                                    {item.specialInstructions}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
                         </div>
-                        {order.servedAt && (
-                            <div className="flex items-center gap-1 text-green-400">
-                                <CheckCircle size={12} />
-                                <span>Servi {new Date(order.servedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
-                            </div>
-                        )}
-                        {order.paidAt && (
-                            <div className="flex items-center gap-1 text-blue-400">
-                                <CreditCard size={12} />
-                                <span>Payé {new Date(order.paidAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
-                            </div>
-                        )}
                     </div>
 
-                    {/* Articles de la commande */}
-                    <div className="space-y-1 mb-3">
-                        <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
-                            <Utensils size={12} />
-                            <span>{order.items.length} article{order.items.length > 1 ? 's' : ''}</span>
-                        </div>
-                        {order.items.slice(0, 3).map((item, index) => (
-                            <div key={index} className="flex justify-between text-sm">
-                                <span className="text-gray-300 truncate mr-2">
-                                    {item.quantite}x {item.nom}
-                                </span>
-                                {item.prix && (
-                                    <span className="text-yellow-500 flex-shrink-0">
-                                        {(item.prix * item.quantite).toFixed(2)}€
-                                    </span>
-                                )}
-                            </div>
-                        ))}
-                        {order.items.length > 3 && (
-                            <div className="text-xs text-gray-500">
-                                +{order.items.length - 3} autre{order.items.length - 3 > 1 ? 's' : ''} article{order.items.length - 3 > 1 ? 's' : ''}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Note de commande */}
+                    {/* ✅ Note globale de la commande (si elle existe) */}
                     {order.noteCommande && (
-                        <div className="mb-3 p-2 bg-yellow-500/10 rounded border border-yellow-500/20">
+                        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
                             <div className="flex items-start gap-2">
-                                <StickyNote size={12} className="text-yellow-500 mt-0.5 flex-shrink-0" />
-                                <span className="text-xs text-yellow-200">{order.noteCommande}</span>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Raison d'annulation (si applicable) */}
-                    {order.status === 'cancelled' && order.cancellationReason && (
-                        <div className="mb-3 p-2 bg-red-500/10 rounded border border-red-500/20">
-                            <div className="flex items-start gap-2">
-                                <XCircle size={12} className="text-red-500 mt-0.5 flex-shrink-0" />
-                                <div>
-                                    <div className="text-xs text-red-400 font-medium">Raison d'annulation :</div>
-                                    <div className="text-xs text-red-200">{order.cancellationReason}</div>
+                                <StickyNote size={14} className="text-yellow-400 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1">
+                                    <p className="text-xs font-medium text-yellow-400 mb-1">Instructions générales</p>
+                                    <p className="text-xs text-yellow-300 leading-relaxed">{order.noteCommande}</p>
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {/* Total et durée de service */}
-                    <div className="flex justify-between items-center mb-3">
-                        <div className="flex items-center gap-1">
-                            <Euro size={14} className="text-yellow-500" />
-                            <span className="text-lg font-bold text-yellow-500">
-                                {order.total.toFixed(2)}€
-                            </span>
-                        </div>
-
-                        {/* Durée depuis la commande ou temps de service */}
-                        <div className="text-xs text-gray-500">
-                            {order.status === 'pending' && (
-                                <span className="text-yellow-400">
-                                    {(() => {
-                                        const now = new Date();
-                                        const orderTime = new Date(order.createdAt);
-                                        const diffInMinutes = Math.floor((now.getTime() - orderTime.getTime()) / (1000 * 60));
-                                        
-                                        if (diffInMinutes < 1) return 'À l\'instant';
-                                        if (diffInMinutes < 60) return `${diffInMinutes}min d'attente`;
-                                        
-                                        const diffInHours = Math.floor(diffInMinutes / 60);
-                                        return `${diffInHours}h${diffInMinutes % 60}min d'attente`;
-                                    })()}
-                                </span>
-                            )}
-                            {order.status === 'served' && order.servedAt && (
-                                <span className="text-green-400">
-                                    Servi à {new Date(order.servedAt).toLocaleTimeString('fr-FR', { 
-                                        hour: '2-digit', 
-                                        minute: '2-digit' 
-                                    })}
-                                </span>
-                            )}
-                            {order.status === 'paid' && order.paidAt && (
-                                <span className="text-blue-400">
-                                    Payé à {new Date(order.paidAt).toLocaleTimeString('fr-FR', { 
-                                        hour: '2-digit', 
-                                        minute: '2-digit' 
-                                    })}
-                                </span>
-                            )}
-                        </div>
+                    {/* Total de la commande */}
+                    <div className="flex justify-between items-center pt-3 border-t border-gray-700/50">
+                        <span className="text-sm font-medium text-gray-300">Total</span>
+                        <span className="text-lg font-bold text-green-400">
+                        {order.total.toFixed(2)}€
+                    </span>
                     </div>
 
-                    {/* ✅ Actions selon le workflow et les transitions autorisées */}
-                    <div className="space-y-2">
-                        {/* Boutons de transition de statut */}
+                    {/* Informations temporelles */}
+                    <div className="text-xs text-gray-500 pt-2 border-t border-gray-700/50">
+                        <div className="flex justify-between items-center">
+                        <span>Créée: {new Date(order.createdAt).toLocaleTimeString('fr-FR', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        })}</span>
+                            <span className="font-mono">#{order.id.substring(0, 8)}</span>
+                        </div>
+
+                        {/* Timestamps selon le statut */}
+                        {order.status === 'served' && order.servedAt && (
+                            <div className="mt-1 text-green-400">
+                                Servi: {new Date(order.servedAt).toLocaleTimeString('fr-FR', {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            })}
+                            </div>
+                        )}
+
+                        {order.status === 'paid' && order.paidAt && (
+                            <div className="mt-1 text-blue-400">
+                                Payé: {new Date(order.paidAt).toLocaleTimeString('fr-FR', {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            })}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* ✅ Boutons d'action selon le statut */}
+                    <div className="space-y-2 pt-3">
+                        {/* Actions pour commandes en cours */}
                         {activeTab === 'pending' && order.status === 'pending' && (
                             <div className="flex gap-2">
                                 <Button
@@ -365,7 +354,6 @@ const AdminOrdersView: React.FC = () => {
                                     <CheckCircle size={14} className="mr-1" />
                                     Marquer comme servi
                                 </Button>
-
                                 <Button
                                     onClick={() => handleStatusChangeRequest(order.id, 'cancelled')}
                                     className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-400 hover:to-red-500 text-xs py-2"
@@ -376,6 +364,7 @@ const AdminOrdersView: React.FC = () => {
                             </div>
                         )}
 
+                        {/* Actions pour commandes servies */}
                         {activeTab === 'served' && order.status === 'served' && (
                             <div className="flex gap-2">
                                 <Button
@@ -395,13 +384,11 @@ const AdminOrdersView: React.FC = () => {
                             className="w-full bg-gradient-to-r from-gray-500 to-gray-600 text-white hover:from-gray-400 hover:to-gray-500 text-xs py-2"
                         >
                             {isPrinting ? (
-                                <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />
+                                <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin mr-1" />
                             ) : (
-                                <>
-                                    <Printer size={14} className="mr-1" />
-                                    Imprimer le ticket
-                                </>
+                                <Printer size={14} className="mr-1" />
                             )}
+                            {isPrinting ? 'Impression...' : 'Imprimer ticket'}
                         </Button>
                     </div>
                 </CardContent>
@@ -463,77 +450,77 @@ const AdminOrdersView: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            {/* ✅ Statistiques détaillées avec le nouveau workflow */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <Card className="bg-blue-500/10 border-blue-500/20">
-                    <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-blue-400">{orderStats.totalOrders}</div>
-                        <div className="text-sm text-blue-300">Total aujourd'hui</div>
-                    </CardContent>
-                </Card>
+            {/*/!* ✅ Statistiques détaillées avec le nouveau workflow *!/*/}
+            {/*<div className="grid grid-cols-2 md:grid-cols-5 gap-4">*/}
+            {/*    <Card className="bg-blue-500/10 border-blue-500/20">*/}
+            {/*        <CardContent className="p-4 text-center">*/}
+            {/*            <div className="text-2xl font-bold text-blue-400">{orderStats.totalOrders}</div>*/}
+            {/*            <div className="text-sm text-blue-300">Total aujourd'hui</div>*/}
+            {/*        </CardContent>*/}
+            {/*    </Card>*/}
 
-                <Card className="bg-yellow-500/10 border-yellow-500/20">
-                    <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-yellow-400">{orderStats.pendingOrders}</div>
-                        <div className="text-sm text-yellow-300">🟡 En cours</div>
-                    </CardContent>
-                </Card>
+            {/*    <Card className="bg-yellow-500/10 border-yellow-500/20">*/}
+            {/*        <CardContent className="p-4 text-center">*/}
+            {/*            <div className="text-2xl font-bold text-yellow-400">{orderStats.pendingOrders}</div>*/}
+            {/*            <div className="text-sm text-yellow-300">🟡 En cours</div>*/}
+            {/*        </CardContent>*/}
+            {/*    </Card>*/}
 
-                <Card className="bg-green-500/10 border-green-500/20">
-                    <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-green-400">{orderStats.servedOrders}</div>
-                        <div className="text-sm text-green-300">🟢 Servi</div>
-                    </CardContent>
-                </Card>
+            {/*    <Card className="bg-green-500/10 border-green-500/20">*/}
+            {/*        <CardContent className="p-4 text-center">*/}
+            {/*            <div className="text-2xl font-bold text-green-400">{orderStats.servedOrders}</div>*/}
+            {/*            <div className="text-sm text-green-300">🟢 Servi</div>*/}
+            {/*        </CardContent>*/}
+            {/*    </Card>*/}
 
-                <Card className="bg-blue-600/10 border-blue-600/20">
-                    <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-blue-400">{orderStats.paidOrders}</div>
-                        <div className="text-sm text-blue-300">💶 Payé</div>
-                    </CardContent>
-                </Card>
+            {/*    <Card className="bg-blue-600/10 border-blue-600/20">*/}
+            {/*        <CardContent className="p-4 text-center">*/}
+            {/*            <div className="text-2xl font-bold text-blue-400">{orderStats.paidOrders}</div>*/}
+            {/*            <div className="text-sm text-blue-300">💶 Payé</div>*/}
+            {/*        </CardContent>*/}
+            {/*    </Card>*/}
 
-                <Card className="bg-purple-500/10 border-purple-500/20">
-                    <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-purple-400">{orderStats.totalRevenue.toFixed(2)}€</div>
-                        <div className="text-sm text-purple-300">CA (payé uniquement)</div>
-                    </CardContent>
-                </Card>
-            </div>
+            {/*    <Card className="bg-purple-500/10 border-purple-500/20">*/}
+            {/*        <CardContent className="p-4 text-center">*/}
+            {/*            <div className="text-2xl font-bold text-purple-400">{orderStats.totalRevenue.toFixed(2)}€</div>*/}
+            {/*            <div className="text-sm text-purple-300">CA (payé uniquement)</div>*/}
+            {/*        </CardContent>*/}
+            {/*    </Card>*/}
+            {/*</div>*/}
 
             {/* ✅ Barre de recherche */}
-            <Card className="bg-gray-900/50 border-gray-700">
-                <CardContent className="p-4">
-                    <div className="relative">
-                        <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                        <Input
-                            placeholder="Rechercher par table, client, plat ou montant..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-10 input-premium"
-                        />
-                    </div>
+            {/*<Card className="bg-gray-900/50 border-gray-700">*/}
+            {/*    /!*<CardContent className="p-4">*!/*/}
+            {/*    /!*    <div className="relative">*!/*/}
+            {/*    /!*        <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />*!/*/}
+            {/*    /!*        <Input*!/*/}
+            {/*    /!*            placeholder="Rechercher par table, client, plat ou montant..."*!/*/}
+            {/*    /!*            value={searchTerm}*!/*/}
+            {/*    /!*            onChange={(e) => setSearchTerm(e.target.value)}*!/*/}
+            {/*    /!*            className="pl-10 input-premium"*!/*/}
+            {/*    /!*        />*!/*/}
+            {/*    /!*    </div>*!/*/}
 
-                    <div className="flex items-center justify-between mt-4 text-sm text-gray-400">
-                        <div className="flex items-center gap-4">
-                            <span>
-                                🟡 En cours: {filteredPendingOrders.length} • 
-                                🟢 Servi: {filteredServedOrders.length} • 
-                                💶 Payé: {filteredPaidOrders.length}
-                            </span>
-                            {searchTerm && (
-                                <span className="text-yellow-400">
-                                    • Recherche: "{searchTerm}"
-                                </span>
-                            )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                            <span>Temps réel</span>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
+            {/*    /!*    <div className="flex items-center justify-between mt-4 text-sm text-gray-400">*!/*/}
+            {/*    /!*        <div className="flex items-center gap-4">*!/*/}
+            {/*    /!*            /!*<span>*!/*!/*/}
+            {/*    /!*            /!*    🟡 En cours: {filteredPendingOrders.length} • *!/*!/*/}
+            {/*    /!*            /!*    🟢 Servi: {filteredServedOrders.length} • *!/*!/*/}
+            {/*    /!*            /!*    💶 Payé: {filteredPaidOrders.length}*!/*!/*/}
+            {/*    /!*            /!*</span>*!/*!/*/}
+            {/*    /!*            {searchTerm && (*!/*/}
+            {/*    /!*                <span className="text-yellow-400">*!/*/}
+            {/*    /!*                    • Recherche: "{searchTerm}"*!/*/}
+            {/*    /!*                </span>*!/*/}
+            {/*    /!*            )}*!/*/}
+            {/*    /!*        </div>*!/*/}
+            {/*    /!*        /!*<div className="flex items-center gap-2">*!/*!/*/}
+            {/*    /!*        /!*    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>*!/*!/*/}
+            {/*    /!*        /!*    <span>Temps réel</span>*!/*!/*/}
+            {/*    /!*        /!*</div>*!/*!/*/}
+            {/*    /!*    </div>*!/*/}
+            {/*    /!*</CardContent>*!/*/}
+            {/*</Card>*/}
 
             {/* ✅ Onglets En cours / Servi / Payé selon le nouveau workflow */}
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'pending' | 'served' | 'paid')} className="space-y-4">

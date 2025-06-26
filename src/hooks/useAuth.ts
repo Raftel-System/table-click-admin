@@ -3,7 +3,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User as F
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
-interface AuthUser {
+export interface AuthUser {
     uid: string;
     email: string;
     role: string;
@@ -32,7 +32,7 @@ export const useAuth = () => {
     // Fonction pour charger les données Firestore de l'utilisateur
     const loadUserData = async (firebaseUser: FirebaseUser) => {
         try {
-            const userDocRef = doc(db, 'users', firebaseUser.uid);
+            const userDocRef = doc(db, 'users', firebaseUser.email);
             const userSnap = await getDoc(userDocRef);
             console.log(userSnap);
             if (userSnap.exists()) {

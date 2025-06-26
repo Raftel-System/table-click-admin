@@ -1,7 +1,9 @@
-// src/components/admin/AdminNavbar.tsx
+// src/components/admin/AdminNavbar.tsx - Version modifiée
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useRestaurantContext } from '@/contexts/RestaurantContext';
+import {usePermissions, type UserPermissions} from '@/hooks/usePermission';
+import { PermissionWrapper } from '@/components/admin/PermissionWrapper';
 import {
     BarChart3,
     ShoppingBag,
@@ -14,18 +16,11 @@ import {
     TrendingUp,
     Users,
     ChefHat,
-    Plus // ✅ Ajouté pour le bouton nouvelle commande
+    Plus
 } from 'lucide-react';
 
-interface User {
-    id: string;
-    name: string;
-    email: string;
-    role: 'admin';
-}
-
 interface AdminNavbarProps {
-    user: User;
+    user: AuthUser;
     logout: () => void;
     activeTab: 'orders' | 'stats' | 'menu';
     setActiveTab: (tab: 'orders' | 'stats' | 'menu') => void;
@@ -57,15 +52,16 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
                                                  }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const { restaurant, loading: restaurantLoading } = useRestaurantContext();
+    const permissions = usePermissions();
     const currentTime = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
-    // ✅ Fonction pour rediriger vers la nouvelle commande
     const handleNewOrder = () => {
         if (restaurant?.id) {
             window.location.href = `/${restaurant.id}/commande`;
         }
     };
 
+    // Navigation items avec permissions
     const navigationItems = [
         {
             id: 'orders',
@@ -73,24 +69,29 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
             icon: ShoppingBag,
             badge: orderStats.pendingOrders > 0 ? orderStats.pendingOrders : null,
             color: 'text-blue-400',
-            activeColor: 'bg-blue-500/20 text-blue-400 border-blue-500/50'
+            activeColor: 'bg-blue-500/20 text-blue-400 border-blue-500/50',
+            permission: 'canManageOrders' as keyof UserPermissions
         },
-        {
+        // Menu - Seulement pour les admins
+        ...(permissions.canViewMenu ? [{
             id: 'menu',
             label: 'Menu',
             icon: ChefHat,
             badge: menuLoading ? '...' : (hasMenuData ? menuStats.totalCategories : null),
             color: 'text-purple-400',
-            activeColor: 'bg-purple-500/20 text-purple-400 border-purple-500/50'
-        },
-        {
+            activeColor: 'bg-purple-500/20 text-purple-400 border-purple-500/50',
+            permission: 'canViewMenu' as keyof UserPermissions
+        }] : []),
+        // Statistiques - Seulement pour les admins
+        ...(permissions.canViewStats ? [{
             id: 'stats',
             label: 'Statistiques',
             icon: BarChart3,
             badge: null,
             color: 'text-green-400',
-            activeColor: 'bg-green-500/20 text-green-400 border-green-500/50'
-        }
+            activeColor: 'bg-green-500/20 text-green-400 border-green-500/50',
+            permission: 'canViewStats' as keyof UserPermissions
+        }] : [])
     ];
 
     return (
@@ -116,7 +117,7 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
                             </h1>
                             <div className="flex items-center gap-2 text-xs text-gray-400">
                                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                                <span>Admin Panel</span>
+                                <span>{permissions.canViewStats ? 'Admin Panel' : 'Panel'}</span>
                                 <span>•</span>
                                 <Clock size={12} />
                                 <span>{currentTime}</span>
@@ -157,25 +158,29 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
                             <Search size={20} />
                         </Button>
 
-                        {/* ✅ BOUTON NOUVELLE COMMANDE - Toujours visible */}
-                        <Button 
-                            onClick={handleNewOrder}
-                            disabled={!restaurant?.id || restaurantLoading}
-                            className="bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-400 hover:to-green-500 px-4 py-2 rounded-xl font-medium transition-all transform hover:scale-105 shadow-lg"
-                        >
-                            <Plus size={16} className="mr-2" />
-                            <span className="hidden sm:inline">Nouvelle commande</span>
-                            <span className="sm:hidden">+</span>
-                        </Button>
+                        {/* Bouton Nouvelle Commande - Avec permission */}
+                        <PermissionWrapper permission="canCreateNewOrder">
+                            <Button
+                                onClick={handleNewOrder}
+                                disabled={!restaurant?.id || restaurantLoading}
+                                className="bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-400 hover:to-green-500 px-4 py-2 rounded-xl font-medium transition-all transform hover:scale-105 shadow-lg"
+                            >
+                                <Plus size={16} className="mr-2" />
+                                <span className="hidden sm:inline">Nouvelle commande</span>
+                                <span className="sm:hidden">+</span>
+                            </Button>
+                        </PermissionWrapper>
 
                         {/* User Profile */}
                         <div className="hidden md:flex items-center gap-3 bg-gray-800/50 rounded-xl px-3 py-2 border border-gray-700/50">
                             <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-sm font-bold">
-                                {user?.name?.charAt(0) || 'A'}
+                                {user?.name?.charAt(0) || 'U'}
                             </div>
                             <div className="text-left">
                                 <p className="text-sm font-medium text-white">{user?.name}</p>
-                                <p className="text-xs text-gray-400">Administrateur</p>
+                                <p className="text-xs text-gray-400">
+                                    {user?.role === 'admin' ? 'Administrateur' : 'Utilisateur'}
+                                </p>
                             </div>
                         </div>
 
@@ -201,7 +206,7 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
                     </div>
                 </div>
 
-                {/* Navigation Tabs - Commandes, Menu et Stats */}
+                {/* Navigation Tabs - Filtrée par permissions */}
                 <div className={`${isMobileMenuOpen ? 'block' : 'hidden'} md:block`}>
                     <div className="flex flex-col md:flex-row gap-2">
                         {navigationItems.map((item) => {
@@ -241,8 +246,9 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
                         })}
                     </div>
 
-                    {/* Quick Stats Bar - Étendu avec Menu */}
+                    {/* Quick Stats Bar - Avec permissions pour les données financières */}
                     <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-4">
+                        {/* Commandes - Toujours visible */}
                         <div className="bg-gradient-to-r from-blue-500/10 to-blue-600/10 border border-blue-500/20 rounded-lg p-3">
                             <div className="flex items-center gap-2">
                                 <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
@@ -255,18 +261,22 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
                             </div>
                         </div>
 
-                        <div className="bg-gradient-to-r from-green-500/10 to-green-600/10 border border-green-500/20 rounded-lg p-3">
-                            <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center">
-                                    <TrendingUp size={16} className="text-green-400" />
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-400">Chiffre d'affaires</p>
-                                    <p className="text-sm font-bold text-green-400">{orderStats.totalRevenue.toFixed(0)}€</p>
+                        {/* Chiffre d'affaires - Seulement pour les admins */}
+                        <PermissionWrapper permission="canViewFinancialData">
+                            <div className="bg-gradient-to-r from-green-500/10 to-green-600/10 border border-green-500/20 rounded-lg p-3">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center">
+                                        <TrendingUp size={16} className="text-green-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-400">Chiffre d'affaires</p>
+                                        <p className="text-sm font-bold text-green-400">{orderStats.totalRevenue.toFixed(0)}€</p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        </PermissionWrapper>
 
+                        {/* En attente - Toujours visible */}
                         <div className="bg-gradient-to-r from-orange-500/10 to-orange-600/10 border border-orange-500/20 rounded-lg p-3">
                             <div className="flex items-center gap-2">
                                 <div className="w-8 h-8 bg-orange-500/20 rounded-lg flex items-center justify-center">
@@ -279,33 +289,39 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
                             </div>
                         </div>
 
-                        <div className="bg-gradient-to-r from-purple-500/10 to-purple-600/10 border border-purple-500/20 rounded-lg p-3">
-                            <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center">
-                                    <ChefHat size={16} className="text-purple-400" />
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-400">Catégories</p>
-                                    <p className="text-sm font-bold text-purple-400">
-                                        {menuLoading ? '...' : menuStats.totalCategories}
-                                    </p>
+                        {/* Catégories Menu - Seulement pour les admins */}
+                        <PermissionWrapper permission="canViewMenu">
+                            <div className="bg-gradient-to-r from-purple-500/10 to-purple-600/10 border border-purple-500/20 rounded-lg p-3">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                                        <ChefHat size={16} className="text-purple-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-400">Catégories</p>
+                                        <p className="text-sm font-bold text-purple-400">
+                                            {menuLoading ? '...' : menuStats.totalCategories}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        </PermissionWrapper>
 
-                        <div className="bg-gradient-to-r from-yellow-500/10 to-yellow-600/10 border border-yellow-500/20 rounded-lg p-3">
-                            <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 bg-yellow-500/20 rounded-lg flex items-center justify-center">
-                                    <div className="text-yellow-400 text-xs font-bold">#{menuStats.totalItems}</div>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-400">Articles</p>
-                                    <p className="text-sm font-bold text-yellow-400">
-                                        {menuLoading ? '...' : menuStats.totalItems}
-                                    </p>
+                        {/* Articles Menu - Seulement pour les admins */}
+                        <PermissionWrapper permission="canViewMenu">
+                            <div className="bg-gradient-to-r from-yellow-500/10 to-yellow-600/10 border border-yellow-500/20 rounded-lg p-3">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 bg-yellow-500/20 rounded-lg flex items-center justify-center">
+                                        <div className="text-yellow-400 text-xs font-bold">#{menuStats.totalItems}</div>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-400">Articles</p>
+                                        <p className="text-sm font-bold text-yellow-400">
+                                            {menuLoading ? '...' : menuStats.totalItems}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        </PermissionWrapper>
                     </div>
                 </div>
             </div>
