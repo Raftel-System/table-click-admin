@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { signInWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
-import {auth, db} from "@/lib/firebase.ts";
+import { auth, db } from '@/lib/firebase.ts';
 
 const LoginPage = () => {
     const [email, setEmail] = useState('');
@@ -11,68 +11,40 @@ const LoginPage = () => {
     const [error, setError] = useState('');
     const navigate = useNavigate();
 
-    // Vérifier si l'utilisateur est déjà connecté au chargement de la page
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                // L'utilisateur est déjà connecté, récupérer ses infos et rediriger
-                await handleUserRedirect(user.uid);
-            }
+            if (user) await handleUserRedirect(user.uid);
         });
-
         return () => unsubscribe();
     }, []);
 
-    // Fonction pour récupérer le slug et rediriger
-    const handleUserRedirect = async (userId) => {
+    const handleUserRedirect = async (userId: string) => {
         try {
-            // Chercher dans la collection users avec l'ID utilisateur
             const userDocRef = doc(db, 'users', userId);
-
             const userDoc = await getDoc(userDocRef);
             if (userDoc.exists()) {
                 const userData = userDoc.data();
-                console.log(userData);
                 const userSlug = userData.restaurant;
-
-                if (userSlug) {
-                    // Rediriger vers la page utilisateur avec le slug
-                    navigate(`/${userSlug}`);
-                } else {
-                    console.error('Slug utilisateur non trouvé');
-                    setError('Profil utilisateur incomplet');
-                }
+                if (userSlug) navigate(`/${userSlug}`);
+                else setError('Profil utilisateur incomplet');
             } else {
-                console.error('Document utilisateur non trouvé');
                 setError('Utilisateur non trouvé dans la base de données');
             }
-        } catch (error) {
-            console.error('Erreur lors de la récupération des données utilisateur:', error);
+        } catch (err) {
+            console.error(err);
             setError('Erreur lors du chargement du profil');
         }
     };
 
-    // Fonction de connexion
-    const handleLogin = async (e) => {
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setError('');
-
         try {
-            // Authentification avec Firebase Auth
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
-            const user = userCredential.user;
-
-            console.log('Utilisateur connecté:', user.uid);
-
-            // Récupérer les données utilisateur et rediriger
-            await handleUserRedirect(user.uid);
-
-        } catch (error) {
-            console.error('Erreur de connexion:', error);
-
-            // Gestion des erreurs spécifiques
-            switch (error.code) {
+            await handleUserRedirect(userCredential.user.uid);
+        } catch (err: any) {
+            switch (err.code) {
                 case 'auth/user-not-found':
                     setError('Aucun compte trouvé avec cette adresse email');
                     break;
@@ -97,158 +69,67 @@ const LoginPage = () => {
     };
 
     return (
-        <div className="login-container">
-            <div className="login-form">
-                <h2>Connexion</h2>
+        <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
+            <div className="bg-white w-full max-w-md p-8 rounded-2xl shadow-lg">
+                <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">Connexion</h2>
 
                 {error && (
-                    <div className="error-message">
+                    <div className="mb-4 p-3 rounded-md bg-red-100 text-red-700 text-sm border border-red-300">
                         {error}
                     </div>
                 )}
 
-                <form onSubmit={handleLogin}>
-                    <div className="form-group">
-                        <label htmlFor="email">Email</label>
+                <form onSubmit={handleLogin} className="space-y-5">
+                    <div>
+                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                            Email
+                        </label>
                         <input
-                            type="email"
                             id="email"
+                            type="email"
+                            className="w-full px-4 py-2 border text-black rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                            placeholder="votre@email.com"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            required
                             disabled={loading}
-                            placeholder="votre@email.com"
+                            required
                         />
                     </div>
 
-                    <div className="form-group">
-                        <label htmlFor="password">Mot de passe</label>
+                    <div>
+                        <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                            Mot de passe
+                        </label>
                         <input
-                            type="password"
                             id="password"
+                            type="password"
+                            className="w-full px-4 py-2 border text-black rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                            placeholder="••••••••"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            required
                             disabled={loading}
-                            placeholder="••••••••"
+                            required
                         />
                     </div>
 
                     <button
                         type="submit"
                         disabled={loading || !email || !password}
-                        className="login-button"
+                        className="w-full py-2 text-white font-semibold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-md transition"
                     >
                         {loading ? 'Connexion...' : 'Se connecter'}
                     </button>
                 </form>
 
-                <div className="login-links">
-                    <a href="/forgot-password">Mot de passe oublié ?</a>
-                    <a href="/register">Créer un compte</a>
+                <div className="text-sm text-center mt-6 space-y-2">
+                    <a href="/forgot-password" className="text-blue-600 hover:underline block">
+                        Mot de passe oublié ?
+                    </a>
+                    <a href="/register" className="text-blue-600 hover:underline block">
+                        Créer un compte
+                    </a>
                 </div>
             </div>
-
-            <style jsx>{`
-        .login-container {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          min-height: 100vh;
-          background-color: #f5f5f5;
-          padding: 20px;
-        }
-        
-        .login-form {
-          background: white;
-          padding: 40px;
-          border-radius: 8px;
-          box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
-          width: 100%;
-          max-width: 400px;
-        }
-        
-        h2 {
-          text-align: center;
-          margin-bottom: 30px;
-          color: #333;
-        }
-        
-        .form-group {
-          margin-bottom: 20px;
-        }
-        
-        label {
-          display: block;
-          margin-bottom: 5px;
-          color: #555;
-          font-weight: 500;
-        }
-        
-        input {
-          width: 100%;
-          padding: 12px;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          font-size: 16px;
-          transition: border-color 0.3s;
-        }
-        
-        input:focus {
-          outline: none;
-          border-color: #007bff;
-        }
-        
-        input:disabled {
-          background-color: #f8f9fa;
-          cursor: not-allowed;
-        }
-        
-        .login-button {
-          width: 100%;
-          padding: 12px;
-          background-color: #007bff;
-          color: white;
-          border: none;
-          border-radius: 4px;
-          font-size: 16px;
-          cursor: pointer;
-          transition: background-color 0.3s;
-        }
-        
-        .login-button:hover:not(:disabled) {
-          background-color: #0056b3;
-        }
-        
-        .login-button:disabled {
-          background-color: #6c757d;
-          cursor: not-allowed;
-        }
-        
-        .error-message {
-          background-color: #f8d7da;
-          color: #721c24;
-          padding: 12px;
-          border-radius: 4px;
-          margin-bottom: 20px;
-          border: 1px solid #f5c6cb;
-        }
-        
-        .login-links {
-          text-align: center;
-          margin-top: 20px;
-        }
-        
-        .login-links a {
-          color: #007bff;
-          text-decoration: none;
-          margin: 0 10px;
-        }
-        
-        .login-links a:hover {
-          text-decoration: underline;
-        }
-      `}</style>
         </div>
     );
 };

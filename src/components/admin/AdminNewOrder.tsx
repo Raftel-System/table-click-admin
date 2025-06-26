@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useMenuCategories, useMenuItems, type MenuCategory, type MenuItem } from '@/hooks/useMenu';
+import { useMenuCategories, useMenuItems, type MenuItem } from '@/hooks/useMenu';
 import { useRestaurant } from '@/hooks/useRestaurant';
 import { useToast } from '@/hooks/useToast';
 import { submitAdminOrder } from '@/services/ordersService';
@@ -11,7 +11,6 @@ import {
   ShoppingCart, 
   ChefHat,
   Package,
-  Euro,
   Save,
   StickyNote,
   Coffee,
@@ -22,7 +21,6 @@ import {
   RefreshCw,
   Trash2,
   X,
-  Shield,
   Grid,
   Target,
   ShoppingBag,

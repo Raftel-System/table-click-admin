@@ -1,6 +1,5 @@
 // src/pages/AdminDashboard.tsx - Version avec commandes temps réel
 import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
 import { useRestaurant } from '@/hooks/useRestaurant';
 import { useMenuCategories, useMenuItems } from '@/hooks/useMenu';
 import { useOrders } from '@/hooks/useOrders';
@@ -11,8 +10,13 @@ import AdminStatsView from '@/components/admin/AdminStatsView';
 import AdminMenuView from '@/components/admin/AdminMenuView';
 import LoadingScreen from '@/components/LoadingScreen';
 import ErrorScreen from '@/components/ErrorScreen';
+import { useParams, useNavigate } from 'react-router-dom';
+import {
+    signOut,
+} from 'firebase/auth';
+import {auth} from "@/lib/firebase.ts";
 
-// Mock auth context (remplace Firebase Auth)
+
 interface MockUser {
     id: string;
     name: string;
@@ -23,6 +27,7 @@ interface MockUser {
 const AdminDashboardContent: React.FC = () => {
     const { restaurant } = useRestaurantContext();
     const [activeTab, setActiveTab] = useState<'orders' | 'stats' | 'menu'>('orders');
+    const navigate = useNavigate();
 
     // Hook pour les commandes en temps réel
     const { orders, error: ordersError, getOrderStats } = useOrders(restaurant?.id || '');
@@ -48,10 +53,25 @@ const AdminDashboardContent: React.FC = () => {
         role: 'admin'
     };
 
-    // Simulation du logout
-    const logout = () => {
-        console.log('🚪 Déconnexion admin');
-        alert('Fonctionnalité de déconnexion à implémenter');
+    const logout = async () => {
+        try {
+            // Confirmation utilisateur
+            const confirmLogout = window.confirm('Êtes-vous sûr de vouloir vous déconnecter ?');
+            if (!confirmLogout) return;
+
+            // Déconnexion Firebase
+            await signOut(auth);
+
+            // Nettoyage localStorage
+            localStorage.removeItem(`saved-orders-${restaurant?.id}`);
+
+            // Redirection vers login
+            navigate('/', { replace: true });
+
+        } catch (error) {
+            // Gestion d'erreur
+            alert('Erreur lors de la déconnexion. Veuillez réessayer.');
+        }
     };
 
     // Statistiques des commandes (temps réel)
