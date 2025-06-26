@@ -11,22 +11,23 @@ export interface OrderItem {
     specialInstructions?: string;
 }
 
-// ✅ Type de statut strict
-export type OrderStatus = 'pending' | 'served' | 'cancelled';
+// ✅ Types de statut selon le nouveau workflow
+export type OrderStatus = 'pending' | 'served' | 'paid' | 'cancelled';
 
 export interface Order {
     id: string;
     createdAt: string;
-    status: OrderStatus; // ✅ Type strict au lieu de string
+    status: OrderStatus; // ✅ Type strict avec 4 statuts
     mode: 'sur_place' | 'emporter';
     tableNumber?: number;
     numeroClient?: number;
     total: number;
     items: OrderItem[];
     noteCommande?: string;
-    // ✅ Nouveaux champs pour le suivi des statuts
+    // ✅ Champs pour le suivi des statuts et transitions
     updatedAt?: string; // Date de dernière modification
-    servedAt?: string; // Date de service
+    servedAt?: string; // Date de service (pending → served)
+    paidAt?: string; // Date de paiement (served → paid)
     cancelledAt?: string; // Date d'annulation
     cancellationReason?: string; // Raison de l'annulation
     // Champs calculés
@@ -36,14 +37,15 @@ export interface Order {
 
 export interface OrderStats {
     totalOrders: number;
-    totalRevenue: number;
+    totalRevenue: number; // ✅ Basé uniquement sur les commandes 'paid'
     tableOrders: number;
     takeawayOrders: number;
     averageOrderValue: number;
     ordersThisHour: number;
-    // ✅ Nouvelles stats par statut
+    // ✅ Stats par statut
     pendingOrders: number;
     servedOrders: number;
+    paidOrders: number;
     cancelledOrders: number;
 }
 
@@ -60,6 +62,7 @@ interface OrderData {
     noteCommande?: string;
     updatedAt?: string;
     servedAt?: string;
+    paidAt?: string;
     cancelledAt?: string;
 }
 
@@ -134,13 +137,22 @@ export const useOrders = (restaurantSlug: string) => {
                         }
                     }
 
-                    // Trier par date de création (plus récent en premier)
-                    allOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                    // ✅ Filtrer les commandes d'aujourd'hui seulement
+                    const today = new Date();
+                    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                    
+                    const todayOrders = allOrders.filter(order => {
+                        const orderDate = new Date(order.createdAt);
+                        return orderDate >= startOfDay;
+                    });
 
-                    setOrders(allOrders);
+                    // Trier par date de création (plus récent en premier)
+                    todayOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+                    setOrders(todayOrders);
                     setLoading(false);
                     setError(null);
-                    console.log(`✅ ${allOrders.length} commandes chargées pour ${restaurantSlug}`);
+                    console.log(`✅ ${todayOrders.length} commandes d'aujourd'hui chargées pour ${restaurantSlug}`);
                 } catch (err) {
                     console.error('❌ Erreur lors du parsing des commandes:', err);
                     setError('Erreur lors du traitement des commandes');
@@ -159,19 +171,20 @@ export const useOrders = (restaurantSlug: string) => {
         };
     }, [restaurantSlug]);
 
-    // ✅ Fonction pour mettre à jour le statut d'une commande
+    // ✅ Fonction pour mettre à jour le statut d'une commande avec validation des transitions
     const updateOrderStatus = async (orderId: string, newStatus: OrderStatus, reason?: string): Promise<void> => {
         if (!restaurantSlug) throw new Error('Restaurant slug requis');
 
         try {
-            // Trouver la commande pour connaître son chemin
+            // Trouver la commande pour connaître son chemin et statut actuel
             const order = orders.find(o => o.id === orderId);
             if (!order) throw new Error('Commande introuvable');
 
-            // ✅ Validation des transitions de statut
+            // ✅ Validation stricte des transitions de statut
             const validTransitions: Record<OrderStatus, OrderStatus[]> = {
                 pending: ['served', 'cancelled'],
-                served: [], // Aucune transition possible depuis served
+                served: ['paid'],
+                paid: [], // Aucune transition possible depuis paid
                 cancelled: [] // Aucune transition possible depuis cancelled
             };
 
@@ -188,9 +201,11 @@ export const useOrders = (restaurantSlug: string) => {
                 updatedAt: now
             };
 
-            // Ajouter timestamp et raison spécifique selon le statut
+            // ✅ Ajouter timestamp spécifique selon le statut
             if (newStatus === 'served') {
                 updateData.servedAt = now;
+            } else if (newStatus === 'paid') {
+                updateData.paidAt = now;
             } else if (newStatus === 'cancelled') {
                 updateData.cancelledAt = now;
                 if (reason) {
@@ -209,12 +224,13 @@ export const useOrders = (restaurantSlug: string) => {
         }
     };
 
-    // ✅ Statistiques mises à jour avec statuts
+    // ✅ Statistiques basées uniquement sur les commandes 'paid' du jour
     const getOrderStats = (): OrderStats => {
         const today = new Date();
         const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
         const startOfHour = new Date(today.getFullYear(), today.getMonth(), today.getDate(), today.getHours());
 
+        // Toutes les commandes du jour
         const todayOrders = orders.filter(order => {
             const orderDate = new Date(order.createdAt);
             return orderDate >= startOfDay;
@@ -225,46 +241,54 @@ export const useOrders = (restaurantSlug: string) => {
             return orderDate >= startOfHour;
         });
 
-        const totalRevenue = todayOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+        // ✅ Revenus basés UNIQUEMENT sur les commandes payées
+        const paidOrders = todayOrders.filter(order => order.status === 'paid');
+        const totalRevenue = paidOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+        
         const tableOrders = todayOrders.filter(order => order.mode === 'sur_place').length;
         const takeawayOrders = todayOrders.filter(order => order.mode === 'emporter').length;
 
         // ✅ Stats par statut
         const pendingOrders = todayOrders.filter(order => order.status === 'pending').length;
         const servedOrders = todayOrders.filter(order => order.status === 'served').length;
+        const paidOrdersCount = paidOrders.length;
         const cancelledOrders = todayOrders.filter(order => order.status === 'cancelled').length;
 
         return {
             totalOrders: todayOrders.length,
-            totalRevenue,
+            totalRevenue, // ✅ Uniquement les commandes payées
             tableOrders,
             takeawayOrders,
-            averageOrderValue: todayOrders.length > 0 ? totalRevenue / todayOrders.length : 0,
+            averageOrderValue: paidOrdersCount > 0 ? totalRevenue / paidOrdersCount : 0,
             ordersThisHour: thisHourOrders.length,
             pendingOrders,
             servedOrders,
+            paidOrders: paidOrdersCount,
             cancelledOrders
         };
     };
 
-    // ✅ Filtres par statut
-    const getOrdersByStatus = (status: OrderStatus | 'all' = 'all'): Order[] => {
-        if (status === 'all') return orders;
-        return orders.filter(order => order.status === status);
-    };
-
+    // ✅ Filtres par statut pour les 3 onglets
     const getPendingOrders = (): Order[] => {
         return orders.filter(order => order.status === 'pending')
             .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     };
 
-    const getCompletedOrders = (): Order[] => {
-        return orders.filter(order => order.status === 'served' || order.status === 'cancelled')
-            .sort((a, b) => {
-                const dateA = new Date(a.servedAt || a.cancelledAt || a.updatedAt || a.createdAt);
-                const dateB = new Date(b.servedAt || b.cancelledAt || b.updatedAt || b.createdAt);
-                return dateB.getTime() - dateA.getTime();
-            });
+    const getServedOrders = (): Order[] => {
+        return orders.filter(order => order.status === 'served')
+            .sort((a, b) => new Date(b.servedAt || b.updatedAt || b.createdAt).getTime() - new Date(a.servedAt || a.updatedAt || a.createdAt).getTime());
+    };
+
+    const getPaidOrders = (): Order[] => {
+        return orders.filter(order => order.status === 'paid')
+            .sort((a, b) => new Date(b.paidAt || b.updatedAt || b.createdAt).getTime() - new Date(a.paidAt || a.updatedAt || a.createdAt).getTime());
+    };
+
+    // ✅ Les commandes annulées ne sont pas affichées dans l'interface normale
+    // Uniquement accessible pour debug/export
+    const getCancelledOrders = (): Order[] => {
+        return orders.filter(order => order.status === 'cancelled')
+            .sort((a, b) => new Date(b.cancelledAt || b.updatedAt || b.createdAt).getTime() - new Date(a.cancelledAt || a.updatedAt || a.createdAt).getTime());
     };
 
     // Fonction pour grouper les commandes par date
@@ -284,7 +308,7 @@ export const useOrders = (restaurantSlug: string) => {
                 date,
                 orders: orders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
                 count: orders.length,
-                totalRevenue: orders.reduce((sum, order) => sum + order.total, 0)
+                totalRevenue: orders.filter(o => o.status === 'paid').reduce((sum, order) => sum + order.total, 0)
             }));
     };
 
@@ -317,7 +341,7 @@ export const useOrders = (restaurantSlug: string) => {
 
             console.log('🖨️ Envoi vers imprimante:', {
                 ...printData,
-                serverUrl: `https://zeus-lab.tailfdaef5.ts.net/print-ticket` //http://${config.serverPrinterIp}:3001/print-ticket
+                serverUrl: `https://zeus-lab.tailfdaef5.ts.net/print-ticket`
             });
 
             // 4. Envoyer la requête au serveur d'impression
@@ -355,77 +379,18 @@ export const useOrders = (restaurantSlug: string) => {
         }
     };
 
-
-    // Fonction pour filtrer les commandes
-    const filterOrders = (
-        searchTerm: string = '',
-        dateRange: { start?: Date; end?: Date } = {},
-        statusFilter: OrderStatus | 'all' = 'all',
-        typeFilter: string = 'all',
-        amountRange: { min?: number; max?: number } = {}
-    ) => {
-        let filtered = [...orders];
-
-        // Filtre par terme de recherche
-        if (searchTerm.trim()) {
-            const term = searchTerm.toLowerCase();
-            filtered = filtered.filter(order => {
-                const matchesId = order.id.toLowerCase().includes(term);
-                const matchesTable = order.tableNumber?.toString().includes(term);
-                const matchesClient = order.numeroClient?.toString().includes(term);
-                const matchesItems = order.items.some(item => 
-                    item.nom.toLowerCase().includes(term)
-                );
-                const matchesTotal = order.total.toString().includes(term);
-                
-                return matchesId || matchesTable || matchesClient || matchesItems || matchesTotal;
-            });
-        }
-
-        // Filtre par plage de dates
-        if (dateRange.start || dateRange.end) {
-            filtered = filtered.filter(order => {
-                const orderDate = new Date(order.createdAt);
-                const afterStart = !dateRange.start || orderDate >= dateRange.start;
-                const beforeEnd = !dateRange.end || orderDate <= dateRange.end;
-                return afterStart && beforeEnd;
-            });
-        }
-
-        // ✅ Filtre par statut
-        if (statusFilter !== 'all') {
-            filtered = filtered.filter(order => order.status === statusFilter);
-        }
-
-        // Filtre par type
-        if (typeFilter !== 'all') {
-            filtered = filtered.filter(order => order.mode === typeFilter);
-        }
-
-        // Filtre par montant
-        if (amountRange.min !== undefined || amountRange.max !== undefined) {
-            filtered = filtered.filter(order => {
-                const aboveMin = amountRange.min === undefined || order.total >= amountRange.min;
-                const belowMax = amountRange.max === undefined || order.total <= amountRange.max;
-                return aboveMin && belowMax;
-            });
-        }
-
-        return filtered;
-    };
-
     return {
         orders,
         loading,
         error,
         getOrderStats,
         getOrdersByDate,
-        filterOrders,
         printTicket,
-        // ✅ Nouvelles fonctions pour les statuts
+        // ✅ Fonctions pour le nouveau workflow
         updateOrderStatus,
-        getOrdersByStatus,
         getPendingOrders,
-        getCompletedOrders
+        getServedOrders,
+        getPaidOrders,
+        getCancelledOrders // Pour debug uniquement
     };
 };
