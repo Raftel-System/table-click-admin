@@ -1,72 +1,27 @@
 import { useState, useEffect } from 'react';
-import { signInWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
-import { auth, db } from '@/lib/firebase.ts';
+import {useAuth} from "@/hooks/useAuth.ts";
 
 const LoginPage = () => {
+    const { signIn, user, error, loading } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
     const navigate = useNavigate();
-
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            if (user) await handleUserRedirect(user.uid);
-        });
-        return () => unsubscribe();
-    }, []);
-
-    const handleUserRedirect = async (userId: string) => {
-        try {
-            const userDocRef = doc(db, 'users', userId);
-            const userDoc = await getDoc(userDocRef);
-            if (userDoc.exists()) {
-                const userData = userDoc.data();
-                const userSlug = userData.restaurant;
-                if (userSlug) navigate(`/${userSlug}`);
-                else setError('Profil utilisateur incomplet');
-            } else {
-                setError('Utilisateur non trouvé dans la base de données');
-            }
-        } catch (err) {
-            console.error(err);
-            setError('Erreur lors du chargement du profil');
-        }
-    };
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
-        setLoading(true);
-        setError('');
-        try {
-            const userCredential = await signInWithEmailAndPassword(auth, email, password);
-            await handleUserRedirect(userCredential.user.uid);
-        } catch (err: any) {
-            switch (err.code) {
-                case 'auth/user-not-found':
-                    setError('Aucun compte trouvé avec cette adresse email');
-                    break;
-                case 'auth/wrong-password':
-                    setError('Mot de passe incorrect');
-                    break;
-                case 'auth/invalid-email':
-                    setError('Adresse email invalide');
-                    break;
-                case 'auth/user-disabled':
-                    setError('Ce compte a été désactivé');
-                    break;
-                case 'auth/too-many-requests':
-                    setError('Trop de tentatives. Veuillez réessayer plus tard');
-                    break;
-                default:
-                    setError('Erreur de connexion. Veuillez réessayer');
-            }
-        } finally {
-            setLoading(false);
+        const result = await signIn(email, password);
+        if (result.success) {
+            // Redirection assurée dans useEffect
         }
     };
+
+    // Rediriger automatiquement si connecté
+    useEffect(() => {
+        if (user?.restaurant) {
+            navigate(`/${user.restaurant}`);
+        }
+    }, [user, navigate]);
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">

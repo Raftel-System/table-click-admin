@@ -1,5 +1,5 @@
 // src/pages/AdminDashboard.tsx - Version avec commandes temps réel
-import React, { useState } from 'react';
+import React, {useEffect, useState} from 'react';
 import { useRestaurant } from '@/hooks/useRestaurant';
 import { useMenuCategories, useMenuItems } from '@/hooks/useMenu';
 import { useOrders } from '@/hooks/useOrders';
@@ -15,6 +15,7 @@ import {
     signOut,
 } from 'firebase/auth';
 import {auth} from "@/lib/firebase.ts";
+import {useAuth} from "@/hooks/useAuth.ts";
 
 
 interface MockUser {
@@ -28,7 +29,7 @@ const AdminDashboardContent: React.FC = () => {
     const { restaurant } = useRestaurantContext();
     const [activeTab, setActiveTab] = useState<'orders' | 'stats' | 'menu'>('orders');
     const navigate = useNavigate();
-
+    const { user, loading: authLoading } = useAuth();
     // Hook pour les commandes en temps réel
     const { orders, error: ordersError, getOrderStats } = useOrders(restaurant?.id || '');
 
@@ -52,6 +53,22 @@ const AdminDashboardContent: React.FC = () => {
         email: `admin@${restaurant?.id || 'restaurant'}.com`,
         role: 'admin'
     };
+
+    useEffect(() => {
+        // Ne rien faire tant que l'authentification est en cours
+        if (authLoading) return;
+
+        // Redirection si l'utilisateur est absent
+        if (!user) {
+            navigate('/', { replace: true });
+        } else {
+            console.log('🧑‍💼 Utilisateur connecté :', {
+                email: user.email,
+                role: user.role,
+                restaurant: user.restaurant
+            });
+        }
+    }, [user, authLoading, navigate]);
 
     const logout = async () => {
         try {
