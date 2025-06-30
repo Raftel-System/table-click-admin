@@ -1,661 +1,1028 @@
-// src/components/admin/AdminOrdersViewWorkflow.tsx
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { 
+  Search, 
+  Filter, 
+  Coffee, 
+  Package, 
+  Clock, 
+  CheckCircle, 
+  CreditCard, 
+  Printer, 
+  Edit3, 
+  X, 
+  Eye, 
+  Utensils,
+  StickyNote,
+  User,
+  MoreVertical,
+  Plus,
+  Minus,
+  Save,
+  Trash2,
+  RefreshCw,
+  Target,
+  ShoppingBag,
+  AlertCircle,
+  CheckCheck,
+  Ban,
+  ChefHat,
+  Timer
+} from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/useToast';
 import { useOrders, type Order, type OrderStatus } from '@/hooks/useOrders';
 import { useRestaurantContext } from '@/contexts/RestaurantContext';
-import OrderStatusModal from './OrderStatusModal';
-import {
-    Printer,
-    Clock,
-    Package,
-    Euro,
-    StickyNote,
-    Search,
-    Coffee,
-    Utensils,
-    CheckCircle,
-    XCircle,
-    Timer,
-    AlertCircle,
-    CheckCheck,
-    RefreshCw,
-    CreditCard,
-    Ban,
-    TrendingUp,
-    Banknote, ShoppingCart
-} from 'lucide-react';
 
-interface StatusChangeRequest {
-    orderId: string;
-    targetStatus: OrderStatus;
+// Configuration dynamique du thème par restaurant
+interface RestaurantTheme {
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  font?: string;
+  backgroundImage?: string;
+  logo?: string;
 }
 
+const defaultTheme: RestaurantTheme = {
+  primaryColor: "#176D63", // Vert foncé Talya
+  secondaryColor: "#1D8577", // Vert clair Talya  
+  accentColor: "#F4BE3C", // Jaune Talya
+  font: "Inter"
+};
+
+// Hook pour récupérer le thème du restaurant
+const useRestaurantTheme = (restaurantId?: string): RestaurantTheme => {
+  // En production, ceci ferait un appel API pour récupérer le thème
+  // Pour l'instant, on retourne le thème par défaut Talya
+  return defaultTheme;
+};
+
+// Version responsive du composant AdminOrdersView
 const AdminOrdersView: React.FC = () => {
-    const { toast } = useToast();
-    const { restaurant } = useRestaurantContext();
-    const { 
-        orders, 
-        loading, 
-        error, 
-        printTicket, 
-        getOrderStats, 
-        updateOrderStatus,
-        getPendingOrders,
-        getServedOrders,
-        getPaidOrders
-    } = useOrders(restaurant?.id || '');
+  const { toast } = useToast();
+  const { restaurant } = useRestaurantContext();
+  const theme = useRestaurantTheme(restaurant?.id);
+  
+  const { 
+    orders, 
+    loading, 
+    error, 
+    printTicket, 
+    updateOrderStatus,
+    getPendingOrders,
+    getServedOrders,
+    getPaidOrders
+  } = useOrders(restaurant?.id || '');
+  
+  // États locaux
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [activeTab, setActiveTab] = useState<'pending' | 'served' | 'paid'>('pending');
+  const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
+  const [compactMode, setCompactMode] = useState(false);
+
+  // Mode compact automatique si >5 commandes
+  const currentOrders = activeTab === 'pending' ? getPendingOrders() : 
+                       activeTab === 'served' ? getServedOrders() : getPaidOrders();
+  const shouldUseCompactMode = currentOrders.length > 5 || compactMode;
+
+  // Filtres des commandes
+  const filteredOrders = useMemo(() => {
+    if (!searchTerm.trim()) return currentOrders;
     
-    const [searchTerm, setSearchTerm] = useState('');
-    const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
-    const [statusChangeRequest, setStatusChangeRequest] = useState<StatusChangeRequest | null>(null);
-    const [activeTab, setActiveTab] = useState<'pending' | 'served' | 'paid'>('pending');
+    const term = searchTerm.toLowerCase();
+    return currentOrders.filter(order => {
+      const matchesId = order.id.toLowerCase().includes(term);
+      const matchesTable = order.tableNumber?.toString().includes(term);
+      const matchesClient = order.numeroClient?.toString().includes(term);
+      const matchesItems = order.items.some(item => 
+        item.nom.toLowerCase().includes(term)
+      );
+      return matchesId || matchesTable || matchesClient || matchesItems;
+    });
+  }, [currentOrders, searchTerm]);
 
-    // ✅ Filtrer les commandes selon le terme de recherche pour chaque onglet
-    const filteredPendingOrders = useMemo(() => {
-        const pending = getPendingOrders();
-        if (!searchTerm.trim()) return pending;
-        
-        const term = searchTerm.toLowerCase();
-        return pending.filter(order => {
-            const matchesId = order.id.toLowerCase().includes(term);
-            const matchesTable = order.tableNumber?.toString().includes(term);
-            const matchesClient = order.numeroClient?.toString().includes(term);
-            const matchesItems = order.items.some(item => 
-                item.nom.toLowerCase().includes(term)
-            );
-            const matchesTotal = order.total.toString().includes(term);
-            
-            return matchesId || matchesTable || matchesClient || matchesItems || matchesTotal;
-        });
-    }, [getPendingOrders, searchTerm]);
-
-    const filteredServedOrders = useMemo(() => {
-        const served = getServedOrders();
-        if (!searchTerm.trim()) return served;
-        
-        const term = searchTerm.toLowerCase();
-        return served.filter(order => {
-            const matchesId = order.id.toLowerCase().includes(term);
-            const matchesTable = order.tableNumber?.toString().includes(term);
-            const matchesClient = order.numeroClient?.toString().includes(term);
-            const matchesItems = order.items.some(item => 
-                item.nom.toLowerCase().includes(term)
-            );
-            const matchesTotal = order.total.toString().includes(term);
-            
-            return matchesId || matchesTable || matchesClient || matchesItems || matchesTotal;
-        });
-    }, [getServedOrders, searchTerm]);
-
-    const filteredPaidOrders = useMemo(() => {
-        const paid = getPaidOrders();
-        if (!searchTerm.trim()) return paid;
-        
-        const term = searchTerm.toLowerCase();
-        return paid.filter(order => {
-            const matchesId = order.id.toLowerCase().includes(term);
-            const matchesTable = order.tableNumber?.toString().includes(term);
-            const matchesClient = order.numeroClient?.toString().includes(term);
-            const matchesItems = order.items.some(item => 
-                item.nom.toLowerCase().includes(term)
-            );
-            const matchesTotal = order.total.toString().includes(term);
-            
-            return matchesId || matchesTable || matchesClient || matchesItems || matchesTotal;
-        });
-    }, [getPaidOrders, searchTerm]);
-
-    // ✅ Gérer les demandes de changement de statut
-    const handleStatusChangeRequest = (orderId: string, targetStatus: OrderStatus) => {
-        setStatusChangeRequest({ orderId, targetStatus });
+  // Badge de statut responsive avec thème Talya
+  const StatusBadge: React.FC<{ status: OrderStatus; size?: 'sm' | 'md' }> = ({ status, size = 'md' }) => {
+    const configs = {
+      pending: { 
+        icon: <Timer size={size === 'sm' ? 12 : 16} />, 
+        label: 'En cours' 
+      },
+      served: { 
+        icon: <CheckCircle size={size === 'sm' ? 12 : 16} />, 
+        label: 'Servi' 
+      },
+      paid: { 
+        icon: <CreditCard size={size === 'sm' ? 12 : 16} />, 
+        label: 'Payé' 
+      },
+      cancelled: { 
+        icon: <Ban size={size === 'sm' ? 12 : 16} />, 
+        label: 'Annulé' 
+      }
     };
 
-    const handleStatusChangeConfirm = async (orderId: string, newStatus: OrderStatus, reason?: string) => {
-        try {
-            await updateOrderStatus(orderId, newStatus, reason);
-            
-            const statusText = {
-                served: 'servie',
-                paid: 'payée',
-                cancelled: 'annulée',
-                pending: 'en attente'
-            }[newStatus];
-
-            toast({
-                title: "Statut mis à jour",
-                description: `Commande ${orderId.substring(0, 8)}... marquée comme ${statusText}${reason ? ` (${reason})` : ''}`
-            });
-
-            setStatusChangeRequest(null);
-        } catch (error: any) {
-            toast({
-                title: "Erreur",
-                description: error.message,
-                variant: "destructive"
-            });
-            throw error; // Re-throw pour que le modal puisse gérer l'erreur
-        }
+    const config = configs[status];
+    const sizeClasses = size === 'sm' ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm';
+    
+    const getStatusColor = () => {
+      switch (status) {
+        case 'pending': return theme.accentColor;
+        case 'served': return theme.secondaryColor;
+        case 'paid': return theme.primaryColor;
+        default: return '#ef4444';
+      }
     };
 
-    // ✅ Gérer l'impression d'un ticket
-    const handlePrintTicket = async (order: Order) => {
-        setPrintingOrderId(order.id);
+    const statusColor = getStatusColor();
+    
+    return (
+      <Badge 
+        className={`border ${sizeClasses} font-medium flex items-center gap-1`}
+        style={{
+          backgroundColor: `${statusColor}20`,
+          color: statusColor,
+          borderColor: `${statusColor}50`
+        }}
+      >
+        {config.icon}
+        <span className="hidden sm:inline">{config.label}</span>
+      </Badge>
+    );
+  };
 
-        try {
-            await printTicket(order);
-            toast({
-                title: "Ticket imprimé",
-                description: `Ticket pour ${order.mode === 'sur_place' ? `Table ${order.tableNumber}` : `N°${order.numeroClient || 'EMPORTER'}`} envoyé à l'imprimante`
-            });
-        } catch (error: any) {
-            toast({
-                title: "Erreur d'impression",
-                description: error.message,
-                variant: "destructive"
-            });
-        } finally {
-            setPrintingOrderId(null);
-        }
+  // Actions sur les commandes
+  const handlePrintTicket = async (order: Order) => {
+    setPrintingOrderId(order.id);
+    try {
+      await printTicket(order.id);
+      toast({
+        title: "Ticket imprimé ✅",
+        description: `Ticket ${order.mode === 'sur_place' ? `table ${order.tableNumber}` : `n°${order.numeroClient}`} envoyé à l'imprimante`
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erreur d'impression",
+        description: error.message || "Impossible d'imprimer le ticket",
+        variant: "destructive"
+      });
+    } finally {
+      setPrintingOrderId(null);
+    }
+  };
+
+  const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
+    try {
+      await updateOrderStatus(orderId, newStatus);
+      toast({
+        title: "Statut mis à jour ✅",
+        description: `Commande marquée comme ${newStatus === 'served' ? 'servie' : newStatus === 'paid' ? 'payée' : 'annulée'}`
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erreur",
+        description: error.message || "Impossible de changer le statut",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Dialogue de modification CORRIGÉ avec logique de sauvegarde
+  const EditOrderDialog: React.FC<{ order: Order; onClose: () => void; onSave: (order: Order) => void }> = ({ order, onClose, onSave }) => {
+    const [editedOrder, setEditedOrder] = useState<Order>({ ...order });
+    const [isSaving, setIsSaving] = useState(false);
+
+    // Recalculer le total quand les items changent
+    useEffect(() => {
+      const newTotal = editedOrder.items.reduce((sum, item) => sum + (item.prix || 0) * item.quantite, 0);
+      setEditedOrder(prev => ({ ...prev, total: newTotal }));
+    }, [editedOrder.items]);
+
+    const handleSave = async () => {
+      setIsSaving(true);
+      try {
+        // Ici vous appelleriez votre API pour sauvegarder
+        // await updateOrder(editedOrder.id, editedOrder);
+        
+        onSave(editedOrder);
+        toast({
+          title: "Commande modifiée ✅",
+          description: "Les modifications ont été sauvegardées. Le ticket peut être réimprimé avec la mention 'Commande modifiée'."
+        });
+        onClose();
+      } catch (error: any) {
+        toast({
+          title: "Erreur de sauvegarde",
+          description: error.message || "Impossible de sauvegarder les modifications",
+          variant: "destructive"
+        });
+      } finally {
+        setIsSaving(false);
+      }
     };
 
-    // ✅ Composant Badge de statut selon le nouveau workflow
-    const StatusBadge: React.FC<{ status: OrderStatus }> = ({ status }) => {
-        const config = {
-            pending: {
-                text: '🟡 En cours',
-                className: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50',
-                icon: <Timer size={12} />
-            },
-            served: {
-                text: '🟢 Servi',
-                className: 'bg-green-500/20 text-green-300 border-green-500/50',
-                icon: <CheckCircle size={12} />
-            },
-            paid: {
-                text: '💶 Payé',
-                className: 'bg-blue-500/20 text-blue-300 border-blue-500/50',
-                icon: <CreditCard size={12} />
-            },
-            cancelled: {
-                text: '🔴 Annulé',
-                className: 'bg-red-500/20 text-red-300 border-red-500/50',
-                icon: <XCircle size={12} />
+    const addItem = () => {
+      setEditedOrder(prev => ({
+        ...prev,
+        items: [...prev.items, { nom: '', quantite: 1, prix: 0 }]
+      }));
+    };
+
+    const removeItem = (index: number) => {
+      setEditedOrder(prev => ({
+        ...prev,
+        items: prev.items.filter((_, i) => i !== index)
+      }));
+    };
+
+    const updateItem = (index: number, field: keyof typeof order.items[0], value: any) => {
+      setEditedOrder(prev => ({
+        ...prev,
+        items: prev.items.map((item, i) => {
+          if (i === index) {
+            const updatedItem = { ...item, [field]: value };
+            // Conversion automatique des types
+            if (field === 'prix') {
+              updatedItem.prix = parseFloat(value) || 0;
+            } else if (field === 'quantite') {
+              updatedItem.quantite = parseInt(value) || 1;
             }
-        }[status];
-
-        return (
-            <Badge className={`text-xs border flex items-center gap-1 ${config.className}`}>
-                {config.icon}
-                {config.text}
-            </Badge>
-        );
+            return updatedItem;
+          }
+          return item;
+        })
+      }));
     };
-
-    // ✅ Composant carte de commande selon le workflow
-    const OrderCard: React.FC<{ order: Order; activeTab: string }> = ({ order, activeTab }) => {
-        const isPrinting = printingOrderId === order.id;
-
-        // ✅ Actions disponibles selon le statut et l'onglet actuel
-        const availableActions = {
-            pending: ['served', 'cancelled', 'print'],
-            served: ['paid', 'print'],
-            paid: ['print'] // Seule l'impression est possible pour les commandes payées
-        }[order.status] || ['print'];
-
-        return (
-            <Card className={`border-gray-700 transition-all duration-200 shadow-lg ${
-                order.status === 'pending'
-                    ? 'bg-yellow-500/5 hover:border-yellow-600 hover:scale-[1.02] hover:shadow-xl border-yellow-500/30'
-                    : order.status === 'served'
-                        ? 'bg-green-500/5 hover:border-green-600 hover:scale-[1.02] hover:shadow-xl border-green-500/30'
-                        : order.status === 'paid'
-                            ? 'bg-blue-500/5 hover:border-blue-600 hover:scale-[1.02] hover:shadow-xl border-blue-500/30'
-                            : 'bg-gray-500/5 hover:border-gray-600 hover:scale-[1.02] hover:shadow-xl border-gray-500/30'
-            }`}>
-                <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
-                                order.mode === 'sur_place'
-                                    ? 'bg-blue-500/20 text-blue-400'
-                                    : 'bg-green-500/20 text-green-400'
-                            }`}>
-                                {order.mode === 'sur_place' ? <Coffee size={18} /> : <Package size={18} />}
-                            </div>
-                            <div>
-                                <h3 className="font-semibold text-white">
-                                    {order.mode === 'sur_place' ? 'Sur place' : 'À emporter'}
-                                </h3>
-                                <p className="text-sm text-gray-400">
-                                    {order.mode === 'sur_place'
-                                        ? `Table ${order.tableNumber}`
-                                        : `N°${order.numeroClient || 'EMPORTER'}`
-                                    }
-                                </p>
-                            </div>
-                        </div>
-                        <StatusBadge status={order.status} />
-                    </div>
-                </CardHeader>
-
-                <CardContent className="space-y-4">
-                    {/* ✅ Liste des articles avec instructions spéciales */}
-                    <div className="space-y-3">
-                        <h4 className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                            <ShoppingCart size={14} />
-                            Articles ({order.items.length})
-                        </h4>
-
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                            {order.items.map((item, index) => (
-                                <div key={index} className="bg-gray-800/30 rounded-lg p-3 border border-gray-700/50">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-lg">🍽️</span> {/* Emoji par défaut */}
-                                                <span className="font-medium text-white text-sm">{item.nom}</span>
-                                            </div>
-                                            <div className="flex items-center gap-2 text-xs text-gray-400 mt-1">
-                                                <span>×{item.quantite}</span>
-                                                {item.prix && (
-                                                    <>
-                                                        <span>•</span>
-                                                        <span>{item.prix.toFixed(2)}€</span>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="bg-gray-700/50 rounded-md px-2 py-1 text-xs font-bold text-white">
-                                            ×{item.quantite}
-                                        </div>
-                                    </div>
-
-                                    {/* ✅ Affichage des instructions spéciales par article */}
-                                    {item.specialInstructions && (
-                                        <div className="mt-2 bg-orange-500/10 border border-orange-500/30 rounded-md p-2">
-                                            <div className="flex items-start gap-2">
-                                                <StickyNote size={12} className="text-orange-400 mt-0.5 flex-shrink-0" />
-                                                <p className="text-xs text-orange-300 leading-relaxed">
-                                                    {item.specialInstructions}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* ✅ Note globale de la commande (si elle existe) */}
-                    {order.noteCommande && (
-                        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
-                            <div className="flex items-start gap-2">
-                                <StickyNote size={14} className="text-yellow-400 mt-0.5 flex-shrink-0" />
-                                <div className="flex-1">
-                                    <p className="text-xs font-medium text-yellow-400 mb-1">Instructions générales</p>
-                                    <p className="text-xs text-yellow-300 leading-relaxed">{order.noteCommande}</p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Total de la commande */}
-                    <div className="flex justify-between items-center pt-3 border-t border-gray-700/50">
-                        <span className="text-sm font-medium text-gray-300">Total</span>
-                        <span className="text-lg font-bold text-green-400">
-                        {order.total.toFixed(2)}€
-                    </span>
-                    </div>
-
-                    {/* Informations temporelles */}
-                    <div className="text-xs text-gray-500 pt-2 border-t border-gray-700/50">
-                        <div className="flex justify-between items-center">
-                        <span>Créée: {new Date(order.createdAt).toLocaleTimeString('fr-FR', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                        })}</span>
-                            <span className="font-mono">#{order.id.substring(0, 8)}</span>
-                        </div>
-
-                        {/* Timestamps selon le statut */}
-                        {order.status === 'served' && order.servedAt && (
-                            <div className="mt-1 text-green-400">
-                                Servi: {new Date(order.servedAt).toLocaleTimeString('fr-FR', {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                            })}
-                            </div>
-                        )}
-
-                        {order.status === 'paid' && order.paidAt && (
-                            <div className="mt-1 text-blue-400">
-                                Payé: {new Date(order.paidAt).toLocaleTimeString('fr-FR', {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                            })}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* ✅ Boutons d'action selon le statut */}
-                    <div className="space-y-2 pt-3">
-                        {/* Actions pour commandes en cours */}
-                        {activeTab === 'pending' && order.status === 'pending' && (
-                            <div className="flex gap-2">
-                                <Button
-                                    onClick={() => handleStatusChangeRequest(order.id, 'served')}
-                                    className="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-400 hover:to-green-500 text-xs py-2"
-                                >
-                                    <CheckCircle size={14} className="mr-1" />
-                                    Marquer comme servi
-                                </Button>
-                                <Button
-                                    onClick={() => handleStatusChangeRequest(order.id, 'cancelled')}
-                                    className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-400 hover:to-red-500 text-xs py-2"
-                                >
-                                    <XCircle size={14} className="mr-1" />
-                                    Annuler
-                                </Button>
-                            </div>
-                        )}
-
-                        {/* Actions pour commandes servies */}
-                        {activeTab === 'served' && order.status === 'served' && (
-                            <div className="flex gap-2">
-                                <Button
-                                    onClick={() => handleStatusChangeRequest(order.id, 'paid')}
-                                    className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-400 hover:to-blue-500 text-xs py-2"
-                                >
-                                    <CreditCard size={14} className="mr-1" />
-                                    Marquer comme payé
-                                </Button>
-                            </div>
-                        )}
-
-                        {/* Bouton d'impression (toujours disponible) */}
-                        <Button
-                            onClick={() => handlePrintTicket(order)}
-                            disabled={isPrinting}
-                            className="w-full bg-gradient-to-r from-gray-500 to-gray-600 text-white hover:from-gray-400 hover:to-gray-500 text-xs py-2"
-                        >
-                            {isPrinting ? (
-                                <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin mr-1" />
-                            ) : (
-                                <Printer size={14} className="mr-1" />
-                            )}
-                            {isPrinting ? 'Impression...' : 'Imprimer ticket'}
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
-        );
-    };
-
-    // Affichage du chargement
-    if (loading) {
-        return (
-            <div className="space-y-6">
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    {[...Array(5)].map((_, i) => (
-                        <Card key={i} className="bg-gray-800/50 border-gray-700 animate-pulse">
-                            <CardContent className="p-4">
-                                <div className="h-8 bg-gray-700 rounded w-16 mb-2"></div>
-                                <div className="h-4 bg-gray-700 rounded w-24"></div>
-                            </CardContent>
-                        </Card>
-                    ))}
-                </div>
-                <div className="space-y-4">
-                    <div className="h-10 bg-gray-800/50 rounded w-64"></div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {[...Array(6)].map((_, i) => (
-                            <div key={i} className="h-48 bg-gray-800/50 rounded animate-pulse"></div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    // Affichage des erreurs
-    if (error) {
-        return (
-            <div className="flex items-center justify-center py-12">
-                <Card className="bg-red-500/10 border-red-500/50 max-w-md">
-                    <CardContent className="p-6 text-center">
-                        <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <AlertCircle size={24} className="text-red-500" />
-                        </div>
-                        <h3 className="text-lg font-semibold text-white mb-2">Erreur de chargement</h3>
-                        <p className="text-red-400 text-sm">{error}</p>
-                        <Button 
-                            onClick={() => window.location.reload()} 
-                            className="mt-4 bg-red-500 hover:bg-red-600"
-                        >
-                            <RefreshCw size={16} className="mr-2" />
-                            Réessayer
-                        </Button>
-                    </CardContent>
-                </Card>
-            </div>
-        );
-    }
-
-    const orderStats = getOrderStats();
 
     return (
-        <div className="space-y-6">
-            {/*/!* ✅ Statistiques détaillées avec le nouveau workflow *!/*/}
-            {/*<div className="grid grid-cols-2 md:grid-cols-5 gap-4">*/}
-            {/*    <Card className="bg-blue-500/10 border-blue-500/20">*/}
-            {/*        <CardContent className="p-4 text-center">*/}
-            {/*            <div className="text-2xl font-bold text-blue-400">{orderStats.totalOrders}</div>*/}
-            {/*            <div className="text-sm text-blue-300">Total aujourd'hui</div>*/}
-            {/*        </CardContent>*/}
-            {/*    </Card>*/}
-
-            {/*    <Card className="bg-yellow-500/10 border-yellow-500/20">*/}
-            {/*        <CardContent className="p-4 text-center">*/}
-            {/*            <div className="text-2xl font-bold text-yellow-400">{orderStats.pendingOrders}</div>*/}
-            {/*            <div className="text-sm text-yellow-300">🟡 En cours</div>*/}
-            {/*        </CardContent>*/}
-            {/*    </Card>*/}
-
-            {/*    <Card className="bg-green-500/10 border-green-500/20">*/}
-            {/*        <CardContent className="p-4 text-center">*/}
-            {/*            <div className="text-2xl font-bold text-green-400">{orderStats.servedOrders}</div>*/}
-            {/*            <div className="text-sm text-green-300">🟢 Servi</div>*/}
-            {/*        </CardContent>*/}
-            {/*    </Card>*/}
-
-            {/*    <Card className="bg-blue-600/10 border-blue-600/20">*/}
-            {/*        <CardContent className="p-4 text-center">*/}
-            {/*            <div className="text-2xl font-bold text-blue-400">{orderStats.paidOrders}</div>*/}
-            {/*            <div className="text-sm text-blue-300">💶 Payé</div>*/}
-            {/*        </CardContent>*/}
-            {/*    </Card>*/}
-
-            {/*    <Card className="bg-purple-500/10 border-purple-500/20">*/}
-            {/*        <CardContent className="p-4 text-center">*/}
-            {/*            <div className="text-2xl font-bold text-purple-400">{orderStats.totalRevenue.toFixed(2)}€</div>*/}
-            {/*            <div className="text-sm text-purple-300">CA (payé uniquement)</div>*/}
-            {/*        </CardContent>*/}
-            {/*    </Card>*/}
-            {/*</div>*/}
-
-            {/* ✅ Barre de recherche */}
-            {/*<Card className="bg-gray-900/50 border-gray-700">*/}
-            {/*    /!*<CardContent className="p-4">*!/*/}
-            {/*    /!*    <div className="relative">*!/*/}
-            {/*    /!*        <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />*!/*/}
-            {/*    /!*        <Input*!/*/}
-            {/*    /!*            placeholder="Rechercher par table, client, plat ou montant..."*!/*/}
-            {/*    /!*            value={searchTerm}*!/*/}
-            {/*    /!*            onChange={(e) => setSearchTerm(e.target.value)}*!/*/}
-            {/*    /!*            className="pl-10 input-premium"*!/*/}
-            {/*    /!*        />*!/*/}
-            {/*    /!*    </div>*!/*/}
-
-            {/*    /!*    <div className="flex items-center justify-between mt-4 text-sm text-gray-400">*!/*/}
-            {/*    /!*        <div className="flex items-center gap-4">*!/*/}
-            {/*    /!*            /!*<span>*!/*!/*/}
-            {/*    /!*            /!*    🟡 En cours: {filteredPendingOrders.length} • *!/*!/*/}
-            {/*    /!*            /!*    🟢 Servi: {filteredServedOrders.length} • *!/*!/*/}
-            {/*    /!*            /!*    💶 Payé: {filteredPaidOrders.length}*!/*!/*/}
-            {/*    /!*            /!*</span>*!/*!/*/}
-            {/*    /!*            {searchTerm && (*!/*/}
-            {/*    /!*                <span className="text-yellow-400">*!/*/}
-            {/*    /!*                    • Recherche: "{searchTerm}"*!/*/}
-            {/*    /!*                </span>*!/*/}
-            {/*    /!*            )}*!/*/}
-            {/*    /!*        </div>*!/*/}
-            {/*    /!*        /!*<div className="flex items-center gap-2">*!/*!/*/}
-            {/*    /!*        /!*    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>*!/*!/*/}
-            {/*    /!*        /!*    <span>Temps réel</span>*!/*!/*/}
-            {/*    /!*        /!*</div>*!/*!/*/}
-            {/*    /!*    </div>*!/*/}
-            {/*    /!*</CardContent>*!/*/}
-            {/*</Card>*/}
-
-            {/* ✅ Onglets En cours / Servi / Payé selon le nouveau workflow */}
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'pending' | 'served' | 'paid')} className="space-y-4">
-                <TabsList className="grid w-full grid-cols-3 bg-gray-800/50 border border-gray-700">
-                    <TabsTrigger 
-                        value="pending" 
-                        className="flex items-center gap-2 data-[state=active]:bg-yellow-500/20 data-[state=active]:text-yellow-300"
-                    >
-                        <Timer size={16} />
-                        🟡 En cours ({filteredPendingOrders.length})
-                    </TabsTrigger>
-                    <TabsTrigger 
-                        value="served"
-                        className="flex items-center gap-2 data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300"
-                    >
-                        <CheckCircle size={16} />
-                        🟢 Servi ({filteredServedOrders.length})
-                    </TabsTrigger>
-                    <TabsTrigger 
-                        value="paid"
-                        className="flex items-center gap-2 data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-300"
-                    >
-                        <CreditCard size={16} />
-                        💶 Payé ({filteredPaidOrders.length})
-                    </TabsTrigger>
-                </TabsList>
-
-                {/* ✅ Onglet Commandes en cours */}
-                <TabsContent value="pending" className="space-y-4">
-                    {filteredPendingOrders.length === 0 ? (
-                        <Card className="bg-gray-900/50 border-gray-700">
-                            <CardContent className="p-12 text-center">
-                                <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <Timer size={32} className="text-yellow-500" />
-                                </div>
-                                <h3 className="text-xl font-semibold text-white mb-2">
-                                    {searchTerm ? 'Aucune commande en cours correspondante' : 'Aucune commande en cours'}
-                                </h3>
-                                <p className="text-gray-400">
-                                    {searchTerm 
-                                        ? 'Essayez de modifier votre recherche' 
-                                        : 'Les nouvelles commandes apparaîtront ici en temps réel'
-                                    }
-                                </p>
-                            </CardContent>
-                        </Card>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {filteredPendingOrders.map((order) => (
-                                <OrderCard key={order.id} order={order} activeTab="pending" />
-                            ))}
-                        </div>
-                    )}
-                </TabsContent>
-
-                {/* ✅ Onglet Commandes servies */}
-                <TabsContent value="served" className="space-y-4">
-                    {filteredServedOrders.length === 0 ? (
-                        <Card className="bg-gray-900/50 border-gray-700">
-                            <CardContent className="p-12 text-center">
-                                <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <CheckCircle size={32} className="text-green-500" />
-                                </div>
-                                <h3 className="text-xl font-semibold text-white mb-2">
-                                    {searchTerm ? 'Aucune commande servie correspondante' : 'Aucune commande servie'}
-                                </h3>
-                                <p className="text-gray-400">
-                                    {searchTerm 
-                                        ? 'Essayez de modifier votre recherche' 
-                                        : 'Les commandes servies en attente de paiement apparaîtront ici'
-                                    }
-                                </p>
-                            </CardContent>
-                        </Card>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {filteredServedOrders.map((order) => (
-                                <OrderCard key={order.id} order={order} activeTab="served" />
-                            ))}
-                        </div>
-                    )}
-                </TabsContent>
-
-                {/* ✅ Onglet Commandes payées */}
-                <TabsContent value="paid" className="space-y-4">
-                    {filteredPaidOrders.length === 0 ? (
-                        <Card className="bg-gray-900/50 border-gray-700">
-                            <CardContent className="p-12 text-center">
-                                <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <CreditCard size={32} className="text-blue-500" />
-                                </div>
-                                <h3 className="text-xl font-semibold text-white mb-2">
-                                    {searchTerm ? 'Aucune commande payée correspondante' : 'Aucune commande payée aujourd\'hui'}
-                                </h3>
-                                <p className="text-gray-400">
-                                    {searchTerm 
-                                        ? 'Essayez de modifier votre recherche' 
-                                        : 'Les commandes payées d\'aujourd\'hui apparaîtront ici'
-                                    }
-                                </p>
-                            </CardContent>
-                        </Card>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {filteredPaidOrders.map((order) => (
-                                <OrderCard key={order.id} order={order} activeTab="paid" />
-                            ))}
-                        </div>
-                    )}
-                </TabsContent>
-            </Tabs>
-
-            {/* ✅ Modal de confirmation de changement de statut */}
-            {statusChangeRequest && (
-                <OrderStatusModal
-                    order={orders.find(o => o.id === statusChangeRequest.orderId)!}
-                    targetStatus={statusChangeRequest.targetStatus}
-                    onClose={() => setStatusChangeRequest(null)}
-                    onConfirm={handleStatusChangeConfirm}
-                />
-            )}
-
-            {/* ✅ Indicateur de connexion temps réel amélioré */}
-            <div className="fixed bottom-4 right-4 bg-gray-900/90 border border-gray-700 rounded-lg px-3 py-2 shadow-lg">
-                <div className="flex items-center gap-2 text-xs">
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                    <span className="text-gray-400">
-                        {orders.length} commande{orders.length !== 1 ? 's' : ''} aujourd'hui • 
-                        {orderStats.pendingOrders} en cours • 
-                        {orderStats.totalRevenue.toFixed(2)}€ CA
-                    </span>
-                </div>
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-gray-900 border-gray-700">
+          <CardHeader className="border-b border-gray-700">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-white flex items-center gap-2">
+                <Edit3 size={20} style={{ color: theme.accentColor }} />
+                Modifier la commande
+              </CardTitle>
+              <Button
+                onClick={onClose}
+                variant="ghost"
+                className="text-gray-400 hover:text-white p-2"
+              >
+                <X size={20} />
+              </Button>
             </div>
-        </div>
+          </CardHeader>
+          <CardContent className="p-6 space-y-6">
+            {/* Info commande */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-white">Type de service</Label>
+                <div className="flex items-center gap-2 mt-1">
+                  <div 
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center`}
+                    style={{
+                      backgroundColor: editedOrder.mode === 'sur_place' ? `${theme.primaryColor}30` : `${theme.secondaryColor}30`,
+                      color: editedOrder.mode === 'sur_place' ? theme.primaryColor : theme.secondaryColor
+                    }}
+                  >
+                    {editedOrder.mode === 'sur_place' ? <Coffee size={16} /> : <Package size={16} />}
+                  </div>
+                  <span className="text-white">{editedOrder.mode === 'sur_place' ? 'Sur place' : 'À emporter'}</span>
+                </div>
+              </div>
+              <div>
+                <Label className="text-white">
+                  {editedOrder.mode === 'sur_place' ? 'Table' : 'N° Client'}
+                </Label>
+                <Input
+                  value={editedOrder.mode === 'sur_place' ? editedOrder.tableNumber || '' : editedOrder.numeroClient || ''}
+                  onChange={(e) => {
+                    if (editedOrder.mode === 'sur_place') {
+                      setEditedOrder(prev => ({ ...prev, tableNumber: parseInt(e.target.value) || undefined }));
+                    } else {
+                      setEditedOrder(prev => ({ ...prev, numeroClient: parseInt(e.target.value) || undefined }));
+                    }
+                  }}
+                  className="mt-1 bg-gray-800 border-gray-600 text-white"
+                  style={{ 
+                    borderColor: (editedOrder.mode === 'sur_place' ? editedOrder.tableNumber : editedOrder.numeroClient) ? theme.accentColor : undefined
+                  }}
+                  placeholder={editedOrder.mode === 'sur_place' ? "Ex: 12" : "Ex: 42"}
+                />
+              </div>
+            </div>
+
+            {/* Articles */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-white">Articles</Label>
+                <Button
+                  onClick={addItem}
+                  className="text-sm px-3 py-1"
+                  style={{
+                    backgroundColor: `${theme.secondaryColor}30`,
+                    borderColor: `${theme.secondaryColor}80`,
+                    color: theme.secondaryColor
+                  }}
+                >
+                  <Plus size={16} className="mr-1" />
+                  Ajouter
+                </Button>
+              </div>
+              <div className="space-y-3 max-h-48 overflow-y-auto">
+                {editedOrder.items.map((item, index) => (
+                  <div key={index} className="bg-gray-800/50 border border-gray-700 rounded-lg p-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                      <div className="sm:col-span-2">
+                        <Input
+                          value={item.nom}
+                          onChange={(e) => updateItem(index, 'nom', e.target.value)}
+                          placeholder="Nom de l'article"
+                          className="bg-gray-700 border-gray-600 text-white text-sm"
+                        />
+                      </div>
+                      <div>
+                        <Input
+                          type="number"
+                          value={item.quantite}
+                          onChange={(e) => updateItem(index, 'quantite', e.target.value)}
+                          placeholder="Qté"
+                          className="bg-gray-700 border-gray-600 text-white text-sm"
+                          min="1"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={item.prix || 0}
+                          onChange={(e) => updateItem(index, 'prix', e.target.value)}
+                          placeholder="Prix"
+                          className="bg-gray-700 border-gray-600 text-white text-sm"
+                          min="0"
+                        />
+                        <Button
+                          onClick={() => removeItem(index)}
+                          className="w-8 h-8 p-0 bg-red-500/20 border border-red-500/50 hover:bg-red-500 text-red-400 hover:text-white"
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="mt-2">
+                      <Textarea
+                        value={item.specialInstructions || ''}
+                        onChange={(e) => updateItem(index, 'specialInstructions', e.target.value)}
+                        placeholder="Instructions spéciales"
+                        className="bg-gray-700 border-gray-600 text-white text-sm resize-none"
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Note globale */}
+            <div>
+              <Label className="text-white">Note de commande</Label>
+              <Textarea
+                value={editedOrder.noteCommande || ''}
+                onChange={(e) => setEditedOrder(prev => ({ ...prev, noteCommande: e.target.value }))}
+                placeholder="Instructions spéciales pour la commande..."
+                className="mt-1 bg-gray-800 border-gray-600 text-white resize-none"
+                rows={3}
+              />
+            </div>
+
+            {/* Total mis à jour automatiquement */}
+            <div 
+              className="rounded-lg p-4 border"
+              style={{
+                backgroundColor: `${theme.accentColor}10`,
+                borderColor: `${theme.accentColor}30`
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-white font-medium">Total recalculé</span>
+                <span 
+                  className="text-2xl font-bold"
+                  style={{ color: theme.accentColor }}
+                >
+                  {editedOrder.total.toFixed(2)}€
+                </span>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-4">
+              <Button
+                onClick={onClose}
+                variant="outline"
+                className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-800"
+                disabled={isSaving}
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={handleSave}
+                className="flex-1 text-black font-medium"
+                style={{ backgroundColor: theme.accentColor }}
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <RefreshCw size={16} className="mr-2 animate-spin" />
+                ) : (
+                  <Save size={16} className="mr-2" />
+                )}
+                {isSaving ? 'Sauvegarde...' : 'Sauvegarder'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     );
+  };
+
+  // Carte de commande responsive
+  const OrderCard: React.FC<{ order: Order }> = ({ order }) => {
+    const isCompact = shouldUseCompactMode;
+
+    return (
+      <Card className={`bg-gray-800/50 border-gray-700 transition-all duration-300 ${
+        !isCompact ? 'hover:scale-[1.02] hover:shadow-xl' : ''
+      }`} style={{ 
+        borderLeftWidth: '4px',
+        borderLeftColor: order.status === 'pending' ? theme.accentColor : 
+                        order.status === 'served' ? theme.secondaryColor : 
+                        order.status === 'paid' ? theme.primaryColor : '#6b7280'
+      }}>
+        <CardContent className={isCompact ? 'p-3' : 'p-4'}>
+          {/* Header avec infos principales */}
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div 
+                className={`${isCompact ? 'w-8 h-8' : 'w-10 h-10'} rounded-xl flex items-center justify-center`}
+                style={{
+                  backgroundColor: order.mode === 'sur_place' ? `${theme.primaryColor}30` : `${theme.secondaryColor}30`,
+                  color: order.mode === 'sur_place' ? theme.primaryColor : theme.secondaryColor
+                }}
+              >
+                {order.mode === 'sur_place' ? <Coffee size={isCompact ? 16 : 18} /> : <Package size={isCompact ? 16 : 18} />}
+              </div>
+              <div>
+                <div className={`font-semibold text-white ${isCompact ? 'text-sm' : 'text-base'}`}>
+                  {order.mode === 'sur_place' ? `Table ${order.tableNumber}` : `N°${order.numeroClient}`}
+                </div>
+                <div className={`text-gray-400 ${isCompact ? 'text-xs' : 'text-sm'}`}>
+                  #{order.id.substring(0, 8)}
+                </div>
+              </div>
+            </div>
+            <StatusBadge status={order.status} size={isCompact ? 'sm' : 'md'} />
+          </div>
+
+          {/* Timing info */}
+          <div className={`flex items-center gap-4 mb-3 ${isCompact ? 'text-xs' : 'text-sm'} text-gray-400`}>
+            <div className="flex items-center gap-1">
+              <Clock size={isCompact ? 10 : 12} />
+              <span>{new Date(order.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+            {order.servedAt && (
+              <div className="flex items-center gap-1 text-green-400">
+                <CheckCircle size={isCompact ? 10 : 12} />
+                <span>Servi {new Date(order.servedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            )}
+            {order.paidAt && (
+              <div className="flex items-center gap-1 text-blue-400">
+                <CreditCard size={isCompact ? 10 : 12} />
+                <span>Payé {new Date(order.paidAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Articles */}
+          <div className={`mb-3 ${isCompact ? 'space-y-1' : 'space-y-2'}`}>
+            <div className={`flex items-center gap-1 text-gray-400 ${isCompact ? 'text-xs' : 'text-sm'}`}>
+              <Utensils size={isCompact ? 10 : 12} />
+              <span>{order.items.length} article{order.items.length > 1 ? 's' : ''}</span>
+            </div>
+            {!isCompact && (
+              <div className="space-y-1">
+                {order.items.slice(0, 3).map((item, index) => (
+                  <div key={index} className="flex items-center justify-between text-sm">
+                    <span className="text-gray-300 flex-1 truncate">
+                      {item.quantite}× {item.nom}
+                    </span>
+                    {item.prix && (
+                      <span className="ml-2 font-medium" style={{ color: theme.accentColor }}>
+                        {(item.prix * item.quantite).toFixed(2)}€
+                      </span>
+                    )}
+                  </div>
+                ))}
+                {order.items.length > 3 && (
+                  <div className="text-xs text-gray-500">
+                    +{order.items.length - 3} autre{order.items.length - 3 > 1 ? 's' : ''}...
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Note commande */}
+          {order.noteCommande && (
+            <div className={`mb-3 bg-gray-700/30 rounded-lg p-2 ${isCompact ? 'text-xs' : 'text-sm'}`}>
+              <div className="flex items-start gap-2">
+                <StickyNote size={isCompact ? 12 : 14} style={{ color: theme.accentColor }} className="mt-0.5 flex-shrink-0" />
+                <span className="text-gray-300 line-clamp-2">{order.noteCommande}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Total */}
+          <div className={`flex items-center justify-between mb-4 ${isCompact ? 'text-base' : 'text-lg'}`}>
+            <span className="text-white font-medium">Total</span>
+            <span className="font-bold" style={{ color: theme.accentColor }}>{order.total.toFixed(2)}€</span>
+          </div>
+
+          {/* Actions - Responsive */}
+          <div className="space-y-2">
+            {/* Actions principales - Always visible */}
+            <div className="grid grid-cols-2 gap-2">
+              {order.status === 'pending' && (
+                <Button
+                  onClick={() => handleStatusChange(order.id, 'served')}
+                  className="border-2 hover:bg-opacity-80"
+                  style={{
+                    backgroundColor: `${theme.secondaryColor}20`,
+                    borderColor: `${theme.secondaryColor}80`,
+                    color: theme.secondaryColor
+                  }}
+                  size={isCompact ? 'sm' : 'default'}
+                >
+                  <CheckCircle size={isCompact ? 14 : 16} className="mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">Marquer servi</span>
+                  <span className="sm:hidden">Servi</span>
+                </Button>
+              )}
+              {order.status === 'served' && (
+                <Button
+                  onClick={() => handleStatusChange(order.id, 'paid')}
+                  className="border-2 hover:bg-opacity-80"
+                  style={{
+                    backgroundColor: `${theme.primaryColor}20`,
+                    borderColor: `${theme.primaryColor}80`,
+                    color: theme.primaryColor
+                  }}
+                  size={isCompact ? 'sm' : 'default'}
+                >
+                  <CreditCard size={isCompact ? 14 : 16} className="mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">Marquer payé</span>
+                  <span className="sm:hidden">Payé</span>
+                </Button>
+              )}
+              <Button
+                onClick={() => handlePrintTicket(order)}
+                disabled={printingOrderId === order.id}
+                className="bg-gray-700/50 border border-gray-600 hover:bg-gray-600 text-gray-300 hover:text-white"
+                size={isCompact ? 'sm' : 'default'}
+              >
+                {printingOrderId === order.id ? (
+                  <RefreshCw size={isCompact ? 14 : 16} className="mr-1 sm:mr-2 animate-spin" />
+                ) : (
+                  <Printer size={isCompact ? 14 : 16} className="mr-1 sm:mr-2" />
+                )}
+                <span className="hidden sm:inline">Imprimer</span>
+                <span className="sm:hidden">Print</span>
+              </Button>
+            </div>
+
+            {/* Actions secondaires */}
+            <div className="grid grid-cols-3 gap-2">
+              <Button
+                onClick={() => setEditingOrder(order)}
+                variant="outline"
+                className="border-gray-600 text-gray-300 hover:bg-gray-800"
+                size={isCompact ? 'sm' : 'default'}
+              >
+                <Edit3 size={isCompact ? 14 : 16} className="mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Modifier</span>
+                <span className="sm:hidden">Edit</span>
+              </Button>
+              <Button
+                onClick={() => setSelectedOrder(order)}
+                variant="outline"
+                className="border-gray-600 text-gray-300 hover:bg-gray-800"
+                size={isCompact ? 'sm' : 'default'}
+              >
+                <Eye size={isCompact ? 14 : 16} className="mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Détails</span>
+                <span className="sm:hidden">View</span>
+              </Button>
+              {order.status !== 'cancelled' && (
+                <Button
+                  onClick={() => handleStatusChange(order.id, 'cancelled')}
+                  variant="outline"
+                  className="border-red-500/50 text-red-400 hover:bg-red-500/10"
+                  size={isCompact ? 'sm' : 'default'}
+                >
+                  <X size={isCompact ? 14 : 16} className="mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">Annuler</span>
+                  <span className="sm:hidden">×</span>
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // Vue détaillée d'une commande
+  const OrderDetailsModal: React.FC<{ order: Order; onClose: () => void }> = ({ order, onClose }) => (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-gray-900 border-gray-700">
+        <CardHeader className="border-b border-gray-700">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-white flex items-center gap-2">
+              <div 
+                className="w-8 h-8 rounded-lg flex items-center justify-center"
+                style={{
+                  backgroundColor: order.mode === 'sur_place' ? `${theme.primaryColor}30` : `${theme.secondaryColor}30`,
+                  color: order.mode === 'sur_place' ? theme.primaryColor : theme.secondaryColor
+                }}
+              >
+                {order.mode === 'sur_place' ? <Coffee size={16} /> : <Package size={16} />}
+              </div>
+              Commande #{order.id.substring(0, 8)}
+            </CardTitle>
+            <Button
+              onClick={onClose}
+              variant="ghost"
+              className="text-gray-400 hover:text-white p-2"
+            >
+              <X size={20} />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6 space-y-6">
+          {/* Infos générales */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h3 className="text-white font-semibold mb-3">Informations</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Type:</span>
+                  <span className="text-white">{order.mode === 'sur_place' ? 'Sur place' : 'À emporter'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">{order.mode === 'sur_place' ? 'Table:' : 'Client:'}</span>
+                  <span className="text-white">{order.mode === 'sur_place' ? order.tableNumber : order.numeroClient}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Statut:</span>
+                  <StatusBadge status={order.status} />
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Total:</span>
+                  <span className="font-bold" style={{ color: theme.accentColor }}>{order.total.toFixed(2)}€</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <h3 className="text-white font-semibold mb-3">Timing</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Créée:</span>
+                  <span className="text-white">{new Date(order.createdAt).toLocaleString('fr-FR')}</span>
+                </div>
+                {order.servedAt && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Servie:</span>
+                    <span style={{ color: theme.secondaryColor }}>{new Date(order.servedAt).toLocaleString('fr-FR')}</span>
+                  </div>
+                )}
+                {order.paidAt && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Payée:</span>
+                    <span style={{ color: theme.primaryColor }}>{new Date(order.paidAt).toLocaleString('fr-FR')}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Articles détaillés */}
+          <div>
+            <h3 className="text-white font-semibold mb-3">Articles commandés</h3>
+            <div className="space-y-3">
+              {order.items.map((item, index) => (
+                <div key={index} className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-white font-medium">{item.nom}</h4>
+                    <div className="text-right">
+                      <div className="font-bold" style={{ color: theme.accentColor }}>
+                        {item.prix ? `${(item.prix * item.quantite).toFixed(2)}€` : 'Inclus'}
+                      </div>
+                      <div className="text-gray-400 text-sm">
+                        {item.quantite} × {item.prix ? `${item.prix.toFixed(2)}€` : 'Inclus'}
+                      </div>
+                    </div>
+                  </div>
+                  {item.specialInstructions && (
+                    <div className="bg-gray-700/30 rounded p-2 mt-2">
+                      <div className="flex items-start gap-2">
+                        <StickyNote size={14} style={{ color: theme.accentColor }} className="mt-0.5" />
+                        <span className="text-gray-300 text-sm">{item.specialInstructions}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Note de commande */}
+          {order.noteCommande && (
+            <div>
+              <h3 className="text-white font-semibold mb-3">Note de commande</h3>
+              <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
+                <div className="flex items-start gap-2">
+                  <StickyNote size={16} style={{ color: theme.accentColor }} className="mt-0.5" />
+                  <span className="text-gray-300">{order.noteCommande}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-4">
+            <Button
+              onClick={onClose}
+              variant="outline"
+              className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-800"
+            >
+              Fermer
+            </Button>
+            <Button
+              onClick={() => handlePrintTicket(order)}
+              className="flex-1 bg-gray-700 hover:bg-gray-600 text-white"
+            >
+              <Printer size={16} className="mr-2" />
+              Imprimer
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  // Interface principale
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center">
+        <div className="text-center text-white">
+          <div className="w-16 h-16 border-4 border-yellow-500/30 border-t-yellow-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <h2 className="text-xl font-semibold mb-2">Chargement des commandes...</h2>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center p-4">
+        <Card className="max-w-md bg-gray-900 border-red-500/50">
+          <CardContent className="p-8 text-center">
+            <AlertCircle size={64} className="mx-auto text-red-500 mb-4" />
+            <h2 className="text-xl font-bold mb-2 text-red-400">Erreur de chargement</h2>
+            <p className="text-gray-300 mb-4">{error}</p>
+            <Button
+              onClick={() => window.location.reload()}
+              className="bg-red-500 hover:bg-red-400 text-white"
+            >
+              <RefreshCw size={16} className="mr-2" />
+              Réessayer
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 p-4 lg:p-6">
+      {/* Header responsive */}
+      <div className="mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl lg:text-3xl font-bold text-white mb-2">Gestion des commandes</h1>
+            <p className="text-gray-400">
+              {filteredOrders.length} commande{filteredOrders.length > 1 ? 's' : ''} 
+              {searchTerm && ` (filtré${filteredOrders.length > 1 ? 'es' : 'e'})`}
+            </p>
+          </div>
+          
+          {/* Badge utilisateur avec rôle - Thème Talya */}
+          <div className="flex items-center gap-3">
+            <div 
+              className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{ background: `linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})` }}
+            >
+              <User size={20} className="text-white" />
+            </div>
+            <div>
+              <div className="text-white font-medium">Administrateur</div>
+              <div className="text-sm" style={{ color: theme.primaryColor }}>Admin</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Barre de recherche et mode compact */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-6">
+          <div className="relative flex-1">
+            <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <Input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Rechercher par table, client, article..."
+              className="pl-10 bg-gray-800/50 border-gray-700 text-white placeholder-gray-400 h-12"
+              style={{
+                borderColor: searchTerm ? theme.accentColor : undefined
+              }}
+            />
+          </div>
+          <Button
+            onClick={() => setCompactMode(!compactMode)}
+            variant="outline"
+            className={`border-gray-600 text-gray-300 hover:bg-gray-800 h-12 px-4`}
+            style={{
+              borderColor: compactMode ? theme.accentColor : undefined,
+              color: compactMode ? theme.accentColor : undefined,
+              backgroundColor: compactMode ? 'rgba(55, 65, 81, 1)' : undefined
+            }}
+          >
+            <Filter size={16} className="mr-2" />
+            <span className="hidden sm:inline">Mode compact</span>
+            <span className="sm:hidden">Compact</span>
+          </Button>
+        </div>
+
+        {/* Onglets avec compteurs */}
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
+          <TabsList className="grid w-full grid-cols-3 bg-gray-800/50 border border-gray-700 h-12">
+            <TabsTrigger 
+              value="pending" 
+              className="text-gray-300 flex items-center gap-2 data-[state=active]:text-black"
+              style={{ 
+                backgroundColor: activeTab === 'pending' ? theme.accentColor : 'transparent'
+              }}
+            >
+              <Timer size={16} />
+              En cours ({getPendingOrders().length})
+            </TabsTrigger>
+            <TabsTrigger 
+              value="served" 
+              className="text-gray-300 flex items-center gap-2 data-[state=active]:text-black"
+              style={{ 
+                backgroundColor: activeTab === 'served' ? theme.secondaryColor : 'transparent'
+              }}
+            >
+              <CheckCircle size={16} />
+              Servi ({getServedOrders().length})
+            </TabsTrigger>
+            <TabsTrigger 
+              value="paid" 
+              className="text-gray-300 flex items-center gap-2 data-[state=active]:text-black"
+              style={{ 
+                backgroundColor: activeTab === 'paid' ? theme.primaryColor : 'transparent'
+              }}
+            >
+              <CreditCard size={16} />
+              Payé ({getPaidOrders().length})
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Contenu des onglets */}
+          <div className="mt-6">
+            <TabsContent value="pending" className="mt-0">
+              {filteredOrders.length === 0 ? (
+                <Card className="bg-gray-800/50 border-gray-700">
+                  <CardContent className="p-12 text-center">
+                    <Timer size={64} className="mx-auto text-gray-500 mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">Aucune commande en cours</h3>
+                    <p className="text-gray-400">Les nouvelles commandes apparaîtront ici</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className={`grid gap-4 ${
+                  shouldUseCompactMode 
+                    ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' 
+                    : 'grid-cols-1 lg:grid-cols-2 xl:grid-cols-3'
+                }`}>
+                  {filteredOrders.map((order) => (
+                    <OrderCard key={order.id} order={order} />
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="served" className="mt-0">
+              {filteredOrders.length === 0 ? (
+                <Card className="bg-gray-800/50 border-gray-700">
+                  <CardContent className="p-12 text-center">
+                    <CheckCircle size={64} className="mx-auto text-gray-500 mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">Aucune commande servie</h3>
+                    <p className="text-gray-400">Les commandes servies apparaîtront ici</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className={`grid gap-4 ${
+                  shouldUseCompactMode 
+                    ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' 
+                    : 'grid-cols-1 lg:grid-cols-2 xl:grid-cols-3'
+                }`}>
+                  {filteredOrders.map((order) => (
+                    <OrderCard key={order.id} order={order} />
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="paid" className="mt-0">
+              {filteredOrders.length === 0 ? (
+                <Card className="bg-gray-800/50 border-gray-700">
+                  <CardContent className="p-12 text-center">
+                    <CreditCard size={64} className="mx-auto text-gray-500 mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">Aucune commande payée</h3>
+                    <p className="text-gray-400">Les commandes payées apparaîtront ici</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className={`grid gap-4 ${
+                  shouldUseCompactMode 
+                    ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' 
+                    : 'grid-cols-1 lg:grid-cols-2 xl:grid-cols-3'
+                }`}>
+                  {filteredOrders.map((order) => (
+                    <OrderCard key={order.id} order={order} />
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          </div>
+        </Tabs>
+      </div>
+
+      {/* Modales */}
+      {selectedOrder && (
+        <OrderDetailsModal 
+          order={selectedOrder} 
+          onClose={() => setSelectedOrder(null)} 
+        />
+      )}
+
+      {editingOrder && (
+        <EditOrderDialog
+          order={editingOrder}
+          onClose={() => setEditingOrder(null)}
+          onSave={async (updatedOrder) => {
+            try {
+              // Ici vous appelleriez votre API pour sauvegarder la commande modifiée
+              // await updateOrder(updatedOrder.id, updatedOrder);
+              
+              console.log('Commande modifiée:', updatedOrder);
+              
+              // Notification avec mention spéciale pour l'impression
+              toast({
+                title: "Commande modifiée ✅",
+                description: "Les modifications ont été sauvegardées. Le ticket peut être réimprimé avec la mention 'Commande modifiée'.",
+                duration: 5000
+              });
+              
+              setEditingOrder(null);
+            } catch (error: any) {
+              toast({
+                title: "Erreur de sauvegarde",
+                description: error.message || "Impossible de sauvegarder les modifications",
+                variant: "destructive"
+              });
+            }
+          }}
+        />
+      )}
+    </div>
+  );
 };
 
 export default AdminOrdersView;
