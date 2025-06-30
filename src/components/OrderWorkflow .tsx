@@ -119,14 +119,14 @@ const PORTION_OPTIONS = {
 };
 
 const canHavePortions = (categoryId: string): boolean => {
-  return categoryId === '5f4d89' || categoryId === '4bad96';
+  return categoryId === 'hors-doeuvre-froid' || categoryId === 'hors-doeuvre-chaud';
 };
 
 const getAvailablePortions = (categoryId: string): string[] => {
-  if (categoryId === '5f4d89') {
+  if (categoryId === 'hors-doeuvre-froid') {
     return ['normal', 'piece'];
   }
-  if (categoryId === '4bad96') {
+  if (categoryId === 'hors-doeuvre-chaud') {
     return ['normal', 'demi'];
   }
   return ['normal'];
@@ -382,41 +382,41 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
         <p className="text-gray-400 text-lg">Choisissez votre mode de service</p>
       </div>
 
-      <Card className="bg-gray-800/50 border-gray-700">
-        <CardContent className="p-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-300 ${
-                order.orderType === 'emporter' ? 'bg-green-500/20' : 'bg-blue-500/20'
-              }`}>
-                {order.orderType === 'emporter' ? 
-                  <Package size={32} className="text-green-400" /> : 
-                  <Coffee size={32} className="text-blue-400" />
-                }
-              </div>
-              <div>
-                <h3 className="text-2xl font-bold text-white mb-2">
-                  {order.orderType === 'emporter' ? 'À emporter' : 'Sur place'}
-                </h3>
-                <p className="text-gray-400">
-                  {order.orderType === 'emporter' 
-                    ? 'Commande à récupérer au comptoir' 
-                    : 'Service à table dans notre restaurant'
-                  }
-                </p>
-              </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card 
+          className={`cursor-pointer transition-all duration-300 hover:scale-105 ${
+            order.orderType === 'sur_place'
+              ? 'bg-blue-500/20 border-blue-500 ring-2 ring-blue-500/50'
+              : 'bg-gray-800/50 border-gray-700 hover:border-blue-500/50'
+          }`}
+          onClick={() => setOrder(prev => ({ ...prev, orderType: 'sur_place' }))}
+        >
+          <CardContent className="p-8 text-center">
+            <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Coffee size={40} className="text-blue-400" />
             </div>
-            
-            <Switch
-              checked={order.orderType === 'emporter'}
-              onCheckedChange={(checked) => 
-                setOrder(prev => ({ ...prev, orderType: checked ? 'emporter' : 'sur_place' }))
-              }
-              className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-blue-500"
-            />
-          </div>
-        </CardContent>
-      </Card>
+            <h3 className="text-2xl font-bold text-white mb-2">Sur place</h3>
+            <p className="text-gray-400">Service à table dans notre restaurant</p>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`cursor-pointer transition-all duration-300 hover:scale-105 ${
+            order.orderType === 'emporter'
+              ? 'bg-green-500/20 border-green-500 ring-2 ring-green-500/50'
+              : 'bg-gray-800/50 border-gray-700 hover:border-green-500/50'
+          }`}
+          onClick={() => setOrder(prev => ({ ...prev, orderType: 'emporter' }))}
+        >
+          <CardContent className="p-8 text-center">
+            <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Package size={40} className="text-green-400" />
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-2">À emporter</h3>
+            <p className="text-gray-400">Commande à récupérer au comptoir</p>
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="flex justify-center pt-4">
         <Button
