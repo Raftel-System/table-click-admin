@@ -119,14 +119,14 @@ const PORTION_OPTIONS = {
 };
 
 const canHavePortions = (categoryId: string): boolean => {
-  return categoryId === 'hors-doeuvre-froid' || categoryId === 'hors-doeuvre-chaud';
+  return categoryId === '5f4d89' || categoryId === '4bad96';
 };
 
 const getAvailablePortions = (categoryId: string): string[] => {
-  if (categoryId === 'hors-doeuvre-froid') {
+  if (categoryId === '5f4d89') {
     return ['normal', 'piece'];
   }
-  if (categoryId === 'hors-doeuvre-chaud') {
+  if (categoryId === '4bad96') {
     return ['normal', 'demi'];
   }
   return ['normal'];
