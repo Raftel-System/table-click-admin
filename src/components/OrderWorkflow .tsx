@@ -35,6 +35,7 @@ import {
   type ComposedMenuConfig 
 } from '@/data/composedMenus';
 import TableSelectorDialog from './TableSelectorDialog ';
+import {useOrders} from "@/hooks/useOrders.ts";
 
 // Types
 interface MenuItem {
@@ -156,6 +157,7 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
   } | null>(null);
   const [showPortionOptions, setShowPortionOptions] = useState<Record<string, boolean>>({});
   const [showTableSelector, setShowTableSelector] = useState(false);
+  const { submitOrder, printTicket, orders } = useOrders('talya-bercy');
 
   const [order, setOrder] = useState<ActiveOrder>({
     id: 'order-1',
@@ -311,10 +313,10 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
     setShowTableSelector(false);
   };
 
-  // Soumission
   const handleSubmit = async () => {
+    // Validations de base
     if (order.cart.length === 0) return;
-    
+
     if (order.orderType === 'sur_place' && !order.tableNumber.trim()) {
       alert('Veuillez sélectionner une table');
       return;
@@ -325,8 +327,21 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
     }
 
     setLoading(true);
+
     try {
-      await onOrderSubmit(order);
+      console.log('🔄 Soumission de la commande...');
+
+      // ✅ CRÉATION ET IMPRESSION AUTOMATIQUE en une seule étape
+      const orderId = await submitOrder(order);
+
+      // ✅ Message de succès simple
+      const successMessage = order.orderType === 'sur_place'
+          ? `✅ Commande table ${order.tableNumber} créée et imprimée`
+          : `✅ Commande n°${order.clientNumber} créée et imprimée`;
+
+      alert(successMessage);
+
+      // ✅ RÉINITIALISER LE FORMULAIRE
       setOrder(prev => ({
         ...prev,
         cart: [],
@@ -335,9 +350,40 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
         globalNote: '',
         total: 0
       }));
+
       setCurrentStep('service-type');
-    } catch (error) {
-      console.error('Erreur soumission:', error);
+      setShowPortionOptions({});
+
+    } catch (error: any) {
+      console.error('❌ Erreur soumission:', error);
+
+      // ✅ Gestion des erreurs d'impression dans le message
+      const isCreationError = error?.message?.includes('Impossible de soumettre la commande');
+
+      if (isCreationError) {
+        // Erreur lors de la création de la commande
+        alert(`❌ Erreur: ${error?.message || 'Impossible de créer la commande'}`);
+      } else {
+        // La commande a probablement été créée mais l'impression a échoué
+        // (dans ce cas, submitOrder ne throw pas mais log l'erreur)
+        const partialSuccessMessage = order.orderType === 'sur_place'
+            ? `✅ Commande table ${order.tableNumber} créée\n⚠️ Problème d'impression - vérifiez le ticket`
+            : `✅ Commande n°${order.clientNumber} créée\n⚠️ Problème d'impression - vérifiez le ticket`;
+
+        alert(partialSuccessMessage);
+
+        // Réinitialiser quand même le formulaire si la commande a été créée
+        setOrder(prev => ({
+          ...prev,
+          cart: [],
+          tableNumber: '',
+          clientNumber: '',
+          globalNote: '',
+          total: 0
+        }));
+        setCurrentStep('service-type');
+        setShowPortionOptions({});
+      }
     } finally {
       setLoading(false);
     }

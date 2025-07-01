@@ -1,6 +1,6 @@
 // src/hooks/useOrders.ts
 import { useState, useEffect } from 'react';
-import { ref, onValue, off, update } from 'firebase/database';
+import { ref, onValue, off, update, push } from 'firebase/database';
 import { rtDatabase } from '@/lib/firebase';
 import {getRestaurantConfig} from "@/hooks/useRestaurant.ts";
 
@@ -9,6 +9,35 @@ export interface OrderItem {
     quantite: number;
     prix?: number;
     specialInstructions?: string;
+    // ✅ Nouveaux champs pour les menus composés
+    isComposed?: boolean;
+    originalPrice?: number; // Prix de base avant personnalisation
+    portionType?: string; // normal, piece, demi
+    portionLabel?: string; // Affichage portion
+    // ✅ Sélections pour menus composés
+    selections?: MenuSelection[];
+    selectedItems?: ComposedOrderItem[];
+}
+
+// ✅ Types pour les menus composés dans les commandes
+export interface MenuSelection {
+    stepId: string;
+    stepLabel: string;
+    selectedItemIds?: string[];
+    selectedCustomOptions?: string[];
+    customNote?: string;
+}
+
+export interface ComposedOrderItem {
+    stepId: string;
+    stepLabel: string;
+    items: Array<{
+        id: string;
+        nom: string;
+        priceAdjustment?: number;
+        customNote?: string;
+        emoji?: string;
+    }>;
 }
 
 // ✅ Types de statut selon le nouveau workflow
@@ -54,6 +83,14 @@ interface OrderData {
         nom: string;
         prix: number;
         quantite: number;
+        specialInstructions?: string;
+        // ✅ Données pour menus composés
+        isComposed?: boolean;
+        originalPrice?: number;
+        portionType?: string;
+        portionLabel?: string;
+        selections?: MenuSelection[];
+        selectedItems?: ComposedOrderItem[];
     }>;
     total: number;
     createdAt: string;
@@ -64,6 +101,44 @@ interface OrderData {
     servedAt?: string;
     paidAt?: string;
     cancelledAt?: string;
+    cancellationReason?: string;
+}
+
+// ✅ Interface pour les commandes à soumettre depuis OrderWorkflow
+export interface ActiveOrder {
+    id: string;
+    name: string;
+    cart: CartItem[];
+    orderType: 'sur_place' | 'emporter';
+    tableNumber: string;
+    clientNumber: string;
+    globalNote: string;
+    total: number;
+}
+
+export interface CartItem {
+    id: string;
+    nom: string;
+    prix: number;
+    quantite: number;
+    note?: string;
+    emoji: string;
+    variant?: string;
+    portionType?: string;
+    originalPrice?: number;
+    portionLabel?: string;
+    isComposed?: boolean;
+    selections?: MenuSelection[];
+    selectedItems?: Array<{
+        stepId: string;
+        stepLabel: string;
+        items: Array<{
+            id: string;
+            nom: string;
+            priceAdjustment?: number;
+            customNote?: string;
+        }>;
+    }>;
 }
 
 export const useOrders = (restaurantSlug: string) => {
@@ -140,7 +215,7 @@ export const useOrders = (restaurantSlug: string) => {
                     // ✅ Filtrer les commandes d'aujourd'hui seulement
                     const today = new Date();
                     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-                    
+
                     const todayOrders = allOrders.filter(order => {
                         const orderDate = new Date(order.createdAt);
                         return orderDate >= startOfDay;
@@ -170,6 +245,198 @@ export const useOrders = (restaurantSlug: string) => {
             off(ordersRef, 'value', unsubscribe);
         };
     }, [restaurantSlug]);
+
+    // ✅ Fonction utilitaire pour nettoyer les valeurs undefined
+    const cleanObject = (obj: any): any => {
+        if (obj === null || obj === undefined) return null;
+
+        if (Array.isArray(obj)) {
+            return obj.map(cleanObject).filter(item => item !== null && item !== undefined);
+        }
+
+        if (typeof obj === 'object') {
+            const cleaned: any = {};
+            Object.keys(obj).forEach(key => {
+                const value = cleanObject(obj[key]);
+                if (value !== null && value !== undefined) {
+                    cleaned[key] = value;
+                }
+            });
+            return cleaned;
+        }
+
+        return obj;
+    };
+
+    // ✅ Fonction pour transformer les CartItem en OrderItem pour Firebase
+    const transformCartToOrderItems = (cartItems: CartItem[]): OrderItem[] => {
+        return cartItems.map(cartItem => {
+            const orderItem: OrderItem = {
+                nom: cartItem.nom,
+                quantite: cartItem.quantite,
+                prix: cartItem.prix
+            };
+
+            // ✅ Ajouter specialInstructions seulement si présent et non vide
+            if (cartItem.note && cartItem.note.trim()) {
+                orderItem.specialInstructions = cartItem.note.trim();
+            }
+
+            // ✅ Ajouter les données de portion si présentes
+            if (cartItem.portionType && cartItem.portionType !== 'normal') {
+                orderItem.portionType = cartItem.portionType;
+                if (cartItem.portionLabel) {
+                    orderItem.portionLabel = cartItem.portionLabel;
+                }
+                if (cartItem.originalPrice) {
+                    orderItem.originalPrice = cartItem.originalPrice;
+                }
+            }
+
+            // ✅ Ajouter les données de menu composé si présentes
+            if (cartItem.isComposed) {
+                orderItem.isComposed = true;
+                if (cartItem.originalPrice) {
+                    orderItem.originalPrice = cartItem.originalPrice;
+                }
+
+                // Transformer les selections depuis CartItem vers OrderItem format
+                if (cartItem.selections && cartItem.selections.length > 0) {
+                    orderItem.selections = cartItem.selections.map(selection => ({
+                        stepId: selection.stepId,
+                        stepLabel: selection.stepLabel,
+                        ...(selection.selectedItemIds && selection.selectedItemIds.length > 0 && {
+                            selectedItemIds: selection.selectedItemIds
+                        }),
+                        ...(selection.selectedCustomOptions && selection.selectedCustomOptions.length > 0 && {
+                            selectedCustomOptions: selection.selectedCustomOptions
+                        }),
+                        ...(selection.customNote && selection.customNote.trim() && {
+                            customNote: selection.customNote.trim()
+                        })
+                    }));
+                }
+
+                // Transformer les selectedItems depuis CartItem vers OrderItem format
+                if (cartItem.selectedItems && cartItem.selectedItems.length > 0) {
+                    orderItem.selectedItems = cartItem.selectedItems.map(selection => ({
+                        stepId: selection.stepId,
+                        stepLabel: selection.stepLabel,
+                        items: selection.items.map(item => {
+                            const cleanItem: any = {
+                                id: item.id,
+                                nom: item.nom
+                            };
+
+                            if (item.priceAdjustment !== undefined && item.priceAdjustment !== 0) {
+                                cleanItem.priceAdjustment = item.priceAdjustment;
+                            }
+
+                            if (item.customNote && item.customNote.trim()) {
+                                cleanItem.customNote = item.customNote.trim();
+                            }
+
+                            return cleanItem;
+                        })
+                    }));
+                }
+            }
+
+            // ✅ Nettoyer l'objet final pour supprimer toutes les valeurs undefined
+            return cleanObject(orderItem);
+        });
+    };
+
+    const submitOrder = async (activeOrder: ActiveOrder): Promise<string> => {
+        if (!restaurantSlug) throw new Error('Restaurant slug requis');
+
+        try {
+            console.log('🔄 Soumission commande:', activeOrder);
+
+            // Générer un ID unique pour la commande
+            const now = new Date();
+            const timestamp = now.toISOString();
+
+            // Transformer les items du panier vers le format Firebase
+            const orderItems = transformCartToOrderItems(activeOrder.cart);
+
+            // Préparer les données de commande pour Firebase
+            const orderData: OrderData = {
+                items: orderItems,
+                total: activeOrder.total,
+                createdAt: timestamp,
+                status: 'pending',
+                updatedAt: timestamp
+            };
+
+            // ✅ Ajouter noteCommande seulement si présente et non vide
+            if (activeOrder.globalNote && activeOrder.globalNote.trim()) {
+                orderData.noteCommande = activeOrder.globalNote.trim();
+            }
+
+            // Déterminer le chemin selon le type de commande
+            let orderPath: string;
+            if (activeOrder.orderType === 'sur_place') {
+                orderPath = `orders/${restaurantSlug}/tables/${activeOrder.tableNumber}`;
+                // Pas besoin d'ajouter numeroClient pour sur_place
+            } else {
+                orderPath = `orders/${restaurantSlug}/takeaway`;
+                if (activeOrder.clientNumber && activeOrder.clientNumber.trim()) {
+                    orderData.numeroClient = activeOrder.clientNumber.trim();
+                }
+            }
+
+            // ✅ Nettoyer les données finales avant envoi
+            const cleanedOrderData = cleanObject(orderData);
+
+            // Créer la référence et pousser la commande
+            const ordersRef = ref(rtDatabase, orderPath);
+            const newOrderRef = await push(ordersRef, cleanedOrderData);
+
+            if (!newOrderRef.key) {
+                throw new Error('Erreur lors de la génération de l\'ID de commande');
+            }
+
+            console.log(`✅ Commande créée avec succès: ${newOrderRef.key}`);
+            console.log(`📍 Chemin: ${orderPath}/${newOrderRef.key}`);
+
+            // ✅ 🖨️ IMPRESSION AUTOMATIQUE - directement après création réussie
+            try {
+                console.log('🖨️ Impression automatique du ticket...');
+
+                // Reconstruire l'objet Order pour l'impression
+                const orderForPrint: Order = {
+                    id: newOrderRef.key,
+                    createdAt: timestamp,
+                    status: 'pending',
+                    mode: activeOrder.orderType,
+                    tableNumber: activeOrder.orderType === 'sur_place' ? parseInt(activeOrder.tableNumber) : undefined,
+                    numeroClient: activeOrder.orderType === 'emporter' ? parseInt(activeOrder.clientNumber) : undefined,
+                    total: activeOrder.total,
+                    items: orderItems,
+                    noteCommande: orderData.noteCommande,
+                    updatedAt: timestamp,
+                    tablePath: activeOrder.orderType === 'sur_place' ? 'tables' : 'takeaway',
+                    tableId: activeOrder.orderType === 'sur_place' ? activeOrder.tableNumber : 'takeaway'
+                };
+
+                await printTicket(orderForPrint);
+                console.log('✅ Ticket imprimé automatiquement avec succès');
+
+            } catch (printError: any) {
+                console.error('❌ Erreur impression automatique:', printError);
+                // On ne throw pas l'erreur d'impression pour ne pas bloquer la création de commande
+                // L'utilisateur sera informé dans le workflow que l'impression a échoué
+                console.warn('⚠️ Commande créée mais impression échouée:', printError.message);
+            }
+
+            return newOrderRef.key;
+
+        } catch (error) {
+            console.error('❌ Erreur soumission commande:', error);
+            throw new Error(`Impossible de soumettre la commande: ${error.message}`);
+        }
+    };
 
     // ✅ Fonction pour mettre à jour le statut d'une commande avec validation des transitions
     const updateOrderStatus = async (orderId: string, newStatus: OrderStatus, reason?: string): Promise<void> => {
@@ -244,7 +511,7 @@ export const useOrders = (restaurantSlug: string) => {
         // ✅ Revenus basés UNIQUEMENT sur les commandes payées
         const paidOrders = todayOrders.filter(order => order.status === 'paid');
         const totalRevenue = paidOrders.reduce((sum, order) => sum + (order.total || 0), 0);
-        
+
         const tableOrders = todayOrders.filter(order => order.mode === 'sur_place').length;
         const takeawayOrders = todayOrders.filter(order => order.mode === 'emporter').length;
 
@@ -312,7 +579,6 @@ export const useOrders = (restaurantSlug: string) => {
             }));
     };
 
-    // Fonction pour imprimer un ticket
     const printTicket = async (order: Order): Promise<{ success: boolean; result?: any }> => {
         try {
             // 1. Récupérer la configuration du restaurant
@@ -332,15 +598,46 @@ export const useOrders = (restaurantSlug: string) => {
                 ip: config.printerIp,
                 table: order.mode === 'sur_place' ? order.tableNumber?.toString() : 'EMPORTER',
                 commandeId: order.id,
-                produits: order.items.map(item => ({
-                    nom: item.nom,
-                    quantite: item.quantite,
-                    ...(item.specialInstructions && { specialInstructions: item.specialInstructions })
-                }))
+                // ✅ Note globale de la commande si présente
+                ...(order.noteCommande && { noteCommande: order.noteCommande }),
+                produits: order.items.map(item => {
+                    const baseProduct = {
+                        nom: item.nom,
+                        quantite: item.quantite,
+                        ...(item.specialInstructions && { specialInstructions: item.specialInstructions })
+                    };
+
+                    // ✅ Ajouter les détails des menus composés pour l'impression
+                    if (item.isComposed && item.selectedItems) {
+                        return {
+                            ...baseProduct,
+                            isComposed: true,
+                            composedDetails: item.selectedItems.map(selection => ({
+                                stepLabel: selection.stepLabel,
+                                items: selection.items.map(selectedItem => ({
+                                    nom: selectedItem.nom,
+                                    ...(selectedItem.customNote && { note: selectedItem.customNote })
+                                }))
+                            }))
+                        };
+                    }
+
+                    // ✅ Ajouter les infos de portion si présentes
+                    if (item.portionType && item.portionType !== 'normal' && item.portionLabel) {
+                        return {
+                            ...baseProduct,
+                            portionInfo: item.portionLabel
+                        };
+                    }
+
+                    return baseProduct;
+                })
             };
 
             console.log('🖨️ Envoi vers imprimante:', {
-                ...printData,
+                commandeId: printData.commandeId,
+                table: printData.table,
+                produits: printData.produits.length,
                 serverUrl: `https://zeus-lab.tailfdaef5.ts.net/print-ticket`
             });
 
@@ -391,6 +688,8 @@ export const useOrders = (restaurantSlug: string) => {
         getPendingOrders,
         getServedOrders,
         getPaidOrders,
-        getCancelledOrders // Pour debug uniquement
+        getCancelledOrders, // Pour debug uniquement
+        // ✅ Nouvelle fonction pour soumettre les commandes
+        submitOrder
     };
 };
