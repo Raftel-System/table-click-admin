@@ -197,20 +197,39 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
   // Navigation
   const goBack = () => {
     switch (currentStep) {
-      case 'service-type': onBack(); break;
-      case 'categories': setCurrentStep('service-type'); break;
-      case 'items': setCurrentStep('categories'); setSelectedCategory(''); break;
-      case 'cart-review': setCurrentStep('categories'); break;
-      case 'finalization': setCurrentStep('cart-review'); break;
+      case 'service-type': 
+        onBack(); 
+        break;
+      case 'categories': 
+        setCurrentStep('service-type'); 
+        break;
+      case 'items': 
+        // Plus de retour vers categories, on va directement au service-type
+        setCurrentStep('service-type'); 
+        setSelectedCategory(''); 
+        break;
+      case 'cart-review': 
+        setCurrentStep('items'); // Retour vers les articles avec la barre sticky
+        break;
+      case 'finalization': 
+        setCurrentStep('cart-review'); 
+        break;
     }
   };
-
   const goNext = () => {
     switch (currentStep) {
-      case 'service-type': setCurrentStep('categories'); break;
-      case 'categories': if (selectedCategory) setCurrentStep('items'); break;
-      case 'items': if (order.cart.length > 0) setCurrentStep('cart-review'); break;
-      case 'cart-review': setCurrentStep('finalization'); break;
+      case 'service-type': 
+        setCurrentStep('categories'); 
+        break;
+      case 'categories': 
+        // Auto-transition vers items géré dans CategoriesStep
+        break;
+      case 'items': 
+        if (order.cart.length > 0) setCurrentStep('cart-review'); 
+        break;
+      case 'cart-review': 
+        setCurrentStep('finalization'); 
+        break;
     }
   };
 
@@ -476,213 +495,260 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
     </div>
   );
 
-  const CategoriesStep = () => (
-    <div className="space-y-8">
-      <div className="text-center">
-        <h2 className="text-4xl font-bold text-white mb-4">Que souhaitez-vous commander ?</h2>
-        <p className="text-gray-400 text-lg">Choisissez une catégorie pour voir nos délicieux produits</p>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        {categories
+  const CategoriesStep = () => {
+    // Auto-sélection de la première catégorie et transition vers les articles
+    useEffect(() => {
+      if (!selectedCategory && categories.length > 0) {
+        const firstCategory = categories
           .filter(cat => cat.active)
-          .sort((a, b) => a.ordre - b.ordre)
-          .map((category) => (
-            <Card
-              key={category.id}
-              className={`cursor-pointer transition-all duration-300 hover:scale-105 ${
-                selectedCategory === category.id
-                  ? 'bg-yellow-500/20 border-yellow-500 ring-2 ring-yellow-500/50'
-                  : 'bg-gray-800/50 border-gray-700 hover:border-yellow-500/50'
-              }`}
-              onClick={() => {
-                setSelectedCategory(category.id);
-                setTimeout(goNext, 300);
-              }}
-            >
-              <CardContent className="p-6 text-center">
-                <div className="text-6xl mb-4">{category.emoji}</div>
-                <h3 className="text-xl font-bold text-white">{category.nom}</h3>
-              </CardContent>
-            </Card>
-          ))}
+          .sort((a, b) => a.ordre - b.ordre)[0];
+        
+        if (firstCategory) {
+          setSelectedCategory(firstCategory.id);
+          // Transition automatique vers les articles après un court délai
+          setTimeout(() => setCurrentStep('items'), 500);
+        }
+      }
+    }, [categories, selectedCategory]);
+  
+    return (
+      <div className="space-y-8">
+        <div className="text-center">
+          <h2 className="text-4xl font-bold text-white mb-4">Que souhaitez-vous commander ?</h2>
+          <p className="text-gray-400 text-lg">Sélection automatique en cours...</p>
+          
+          {/* Indicateur de chargement élégant */}
+          <div className="flex justify-center mt-8">
+            <div className="w-8 h-8 border-2 border-yellow-500/30 border-t-yellow-500 rounded-full animate-spin"></div>
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const ItemsStep = () => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-white">
-            {categories.find(cat => cat.id === selectedCategory)?.nom}
-          </h2>
-          <p className="text-gray-400">Ajoutez vos articles favoris au panier</p>
-        </div>
+    <div className="space-y-0"> {/* Removed space-y-6 pour coller la barre */}
+      
+      {/* 🌟 BARRE DE NAVIGATION STICKY PREMIUM */}
+      <CategoryNavigationBar />
+      
+      {/* Contenu principal avec padding-top pour compenser la barre sticky */}
+      <div className="pt-6 space-y-6">
         
-        {order.cart.length > 0 && (
-          <Button
-            onClick={() => setCurrentStep('cart-review')}
-            className="bg-green-500 hover:bg-green-400 text-white rounded-2xl px-6 py-3"
-          >
-            Voir le panier ({order.cart.length})
-            <ShoppingCart size={20} className="ml-2" />
-          </Button>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredItems.map((item) => {
-          const category = categories.find(cat => cat.id === item.categorieId);
-          const isComposed = isComposedMenu(item.nom);
-          const hasPortionOptions = canHavePortions(item.categorieId);
-          const availablePortions = getAvailablePortions(item.categorieId);
-          const showOptions = showPortionOptions[item.id] || false;
-
-          return (
-            <Card key={item.id} className="bg-gray-800/50 border-gray-700 hover:border-yellow-500/50 transition-all duration-300">
-              <CardContent className="p-6">
-                <div className="text-center mb-4">
-                  <div className="text-5xl mb-3">{category?.emoji || '🍽️'}</div>
-                  <h3 className="text-xl font-bold text-white mb-2">{item.nom}</h3>
-                  <p className="text-gray-400 text-sm mb-3 line-clamp-2">{item.description}</p>
+        {/* Header de la section avec nom de catégorie */}
+        <div className="flex items-center justify-between px-4">
+          <div>
+            <h2 className="text-3xl font-bold text-white flex items-center gap-3">
+              <span className="text-4xl">
+                {categories.find(cat => cat.id === selectedCategory)?.emoji}
+              </span>
+              {categories.find(cat => cat.id === selectedCategory)?.nom}
+            </h2>
+            <p className="text-gray-400 mt-1">
+              Ajoutez vos articles favoris au panier • {filteredItems.length} article{filteredItems.length > 1 ? 's' : ''} disponible{filteredItems.length > 1 ? 's' : ''}
+            </p>
+          </div>
+          
+          {/* Bouton panier flottant amélioré */}
+          {order.cart.length > 0 && (
+            <Button
+              onClick={() => setCurrentStep('cart-review')}
+              className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white rounded-2xl px-6 py-3 shadow-lg transform hover:scale-105 transition-all duration-300"
+            >
+              <ShoppingCart size={20} className="mr-2" />
+              <span className="font-medium">
+                {order.cart.reduce((total, item) => total + item.quantite, 0)} • {order.total.toFixed(2)}{currency}
+              </span>
+            </Button>
+          )}
+        </div>
+  
+        {/* Message si aucun article dans la catégorie */}
+        {filteredItems.length === 0 ? (
+          <div className="text-center py-16 px-4">
+            <div className="text-6xl mb-4">🍽️</div>
+            <h3 className="text-2xl font-bold text-white mb-2">Aucun article disponible</h3>
+            <p className="text-gray-400">Cette catégorie est temporairement vide</p>
+          </div>
+        ) : (
+          /* Grille des articles avec animation d'entrée */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-4">
+            {filteredItems.map((item, index) => {
+              const category = categories.find(cat => cat.id === item.categorieId);
+              const isComposed = isComposedMenu(item.nom);
+              const hasPortionOptions = canHavePortions(item.categorieId);
+              const availablePortions = getAvailablePortions(item.categorieId);
+              const showOptions = showPortionOptions[item.id] || false;
+  
+              return (
+                <Card 
+                  key={item.id} 
+                  className="bg-gray-800/50 border-gray-700 hover:border-yellow-500/50 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl hover:shadow-yellow-500/10"
+                  style={{
+                    animation: `fadeInUp 0.6s ease-out forwards`,
+                    animationDelay: `${index * 0.1}s`,
+                    opacity: 0
+                  }}
+                >
+                  <style jsx>{`
+                    @keyframes fadeInUp {
+                      from {
+                        opacity: 0;
+                        transform: translateY(20px);
+                      }
+                      to {
+                        opacity: 1;
+                        transform: translateY(0);
+                      }
+                    }
+                  `}</style>
                   
-                  <div className="flex items-center justify-center gap-2 mb-4">
-                    <span className="text-2xl font-bold text-yellow-500">
-                      {item.prix.toFixed(2)}{currency}
-                    </span>
-                    
-                    {item.isPopular && (
-                      <Badge className="bg-red-500/20 text-red-400 border border-red-500/30">
-                        <Star size={12} className="mr-1" />
-                        Populaire
-                      </Badge>
-                    )}
-                    
-                    {item.isSpecial && (
-                      <Badge className="bg-purple-500/20 text-purple-400 border border-purple-500/30">
-                        <Sparkles size={12} className="mr-1" />
-                        Nouveau
-                      </Badge>
-                    )}
-
-                    {isComposed && (
-                      <Badge className="bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                        <ChefHat size={12} className="mr-1" />
-                        Menu
-                      </Badge>
-                    )}
-
-                    {hasPortionOptions && (
-                      <Badge className="bg-orange-500/20 text-orange-400 border border-orange-500/30">
-                        Portions
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-
-                {hasPortionOptions && showOptions && (
-                  <div className="mb-4 space-y-2 bg-gray-700/30 rounded-lg p-3">
-                    <div className="text-sm text-yellow-400 font-medium mb-2">
-                      Options de portion :
-                    </div>
-                    {availablePortions.map((portionType) => {
-                      const adjustedPrice = calculateAdjustedPrice(item.prix, portionType);
-                      const quantity = getCartQuantity(item.id, portionType);
-                      const portionOption = PORTION_OPTIONS[portionType as keyof typeof PORTION_OPTIONS];
+                  <CardContent className="p-6">
+                    {/* Votre contenu d'article existant ici */}
+                    <div className="text-center mb-4">
+                      <div className="text-5xl mb-3">{category?.emoji || '🍽️'}</div>
+                      <h3 className="text-xl font-bold text-white mb-2">{item.nom}</h3>
+                      <p className="text-gray-400 text-sm mb-3 line-clamp-2">{item.description}</p>
                       
-                      return (
-                        <div
-                          key={portionType}
-                          className="flex items-center justify-between p-2 bg-gray-800/50 rounded border border-gray-600"
-                        >
-                          <div className="flex-1">
-                            <div className="text-sm text-white">
-                              {portionType === 'normal' ? 'Portion normale' : portionOption.label}
-                              {portionOption.suffix}
-                            </div>
-                            <div className="text-xs text-gray-400">
-                              {adjustedPrice.toFixed(2)}{currency}
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            {quantity > 0 && (
-                              <>
-                                <Button
-                                  onClick={() => removeFromCart(item.id, portionType)}
-                                  className="w-8 h-8 p-0 bg-red-500/20 border border-red-500/50 hover:bg-red-500 text-red-400 hover:text-white rounded"
-                                >
-                                  <Minus size={12} />
-                                </Button>
-                                <span className="w-6 text-center text-sm font-bold text-white">
-                                  {quantity}
-                                </span>
-                              </>
-                            )}
-                            
-                            <Button
-                              onClick={() => addToCart(item, portionType, adjustedPrice)}
-                              className="w-8 h-8 p-0 bg-green-500/20 border border-green-500/50 hover:bg-green-500 text-green-400 hover:text-white rounded"
-                            >
-                              <Plus size={12} />
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <div className="flex items-center justify-center gap-4">
-                  {isComposed ? (
-                    <Button
-                      onClick={() => addToCart(item)}
-                      className="w-full h-12 bg-blue-500/20 border-2 border-blue-500/50 hover:bg-blue-500 text-blue-400 hover:text-white rounded-xl transition-all duration-300"
-                    >
-                      <ChefHat size={20} className="mr-2" />
-                      Personnaliser
-                    </Button>
-                  ) : hasPortionOptions ? (
-                    <Button
-                      onClick={() => setShowPortionOptions(prev => ({
-                        ...prev,
-                        [item.id]: !prev[item.id]
-                      }))}
-                      className="w-full h-12 bg-orange-500/20 border-2 border-orange-500/50 hover:bg-orange-500 text-orange-400 hover:text-white rounded-xl transition-all duration-300"
-                    >
-                      {showOptions ? 'Fermer' : 'Voir portions'}
-                    </Button>
-                  ) : (
-                    <>
-                      {getCartQuantity(item.id) > 0 && (
-                        <Button
-                          onClick={() => removeFromCart(item.id)}
-                          className="w-12 h-12 p-0 bg-red-500/20 border border-red-500/50 hover:bg-red-500 text-red-400 hover:text-white rounded-xl"
-                        >
-                          <Minus size={20} />
-                        </Button>
-                      )}
-                      
-                      {getCartQuantity(item.id) > 0 && (
-                        <span className="w-12 text-center text-2xl font-bold text-white">
-                          {getCartQuantity(item.id)}
+                      <div className="flex items-center justify-center gap-2 mb-4">
+                        <span className="text-2xl font-bold text-yellow-500">
+                          {item.prix.toFixed(2)}{currency}
                         </span>
+                        
+                        {item.isPopular && (
+                          <Badge className="bg-red-500/20 text-red-400 border border-red-500/30">
+                            <Star size={12} className="mr-1" />
+                            Populaire
+                          </Badge>
+                        )}
+                        
+                        {item.isSpecial && (
+                          <Badge className="bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                            <Sparkles size={12} className="mr-1" />
+                            Nouveau
+                          </Badge>
+                        )}
+  
+                        {isComposed && (
+                          <Badge className="bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                            <ChefHat size={12} className="mr-1" />
+                            Menu
+                          </Badge>
+                        )}
+  
+                        {hasPortionOptions && (
+                          <Badge className="bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                            Portions
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+  
+                    {/* Votre logique de portions et boutons existante... */}
+                    {hasPortionOptions && showOptions && (
+                      <div className="mb-4 space-y-2 bg-gray-700/30 rounded-lg p-3">
+                        <div className="text-sm text-yellow-400 font-medium mb-2">
+                          Options de portion :
+                        </div>
+                        {availablePortions.map((portionType) => {
+                          const adjustedPrice = calculateAdjustedPrice(item.prix, portionType);
+                          const quantity = getCartQuantity(item.id, portionType);
+                          const portionOption = PORTION_OPTIONS[portionType as keyof typeof PORTION_OPTIONS];
+                          
+                          return (
+                            <div
+                              key={portionType}
+                              className="flex items-center justify-between p-2 bg-gray-800/50 rounded border border-gray-600"
+                            >
+                              <div className="flex-1">
+                                <div className="text-sm text-white">
+                                  {portionType === 'normal' ? 'Portion normale' : portionOption.label}
+                                  {portionOption.suffix}
+                                </div>
+                                <div className="text-xs text-gray-400">
+                                  {adjustedPrice.toFixed(2)}{currency}
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center gap-2">
+                                {quantity > 0 && (
+                                  <>
+                                    <Button
+                                      onClick={() => removeFromCart(item.id, portionType)}
+                                      className="w-8 h-8 p-0 bg-red-500/20 border border-red-500/50 hover:bg-red-500 text-red-400 hover:text-white rounded"
+                                    >
+                                      <Minus size={12} />
+                                    </Button>
+                                    <span className="w-6 text-center text-sm font-bold text-white">
+                                      {quantity}
+                                    </span>
+                                  </>
+                                )}
+                                
+                                <Button
+                                  onClick={() => addToCart(item, portionType, adjustedPrice)}
+                                  className="w-8 h-8 p-0 bg-green-500/20 border border-green-500/50 hover:bg-green-500 text-green-400 hover:text-white rounded"
+                                >
+                                  <Plus size={12} />
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+  
+                    <div className="flex items-center justify-center gap-4">
+                      {isComposed ? (
+                        <Button
+                          onClick={() => addToCart(item)}
+                          className="w-full h-12 bg-blue-500/20 border-2 border-blue-500/50 hover:bg-blue-500 text-blue-400 hover:text-white rounded-xl transition-all duration-300"
+                        >
+                          <ChefHat size={20} className="mr-2" />
+                          Personnaliser
+                        </Button>
+                      ) : hasPortionOptions ? (
+                        <Button
+                          onClick={() => setShowPortionOptions(prev => ({
+                            ...prev,
+                            [item.id]: !prev[item.id]
+                          }))}
+                          className="w-full h-12 bg-orange-500/20 border-2 border-orange-500/50 hover:bg-orange-500 text-orange-400 hover:text-white rounded-xl transition-all duration-300"
+                        >
+                          {showOptions ? 'Fermer' : 'Voir portions'}
+                        </Button>
+                      ) : (
+                        <>
+                          {getCartQuantity(item.id) > 0 && (
+                            <Button
+                              onClick={() => removeFromCart(item.id)}
+                              className="w-12 h-12 p-0 bg-red-500/20 border border-red-500/50 hover:bg-red-500 text-red-400 hover:text-white rounded-xl"
+                            >
+                              <Minus size={20} />
+                            </Button>
+                          )}
+                          
+                          {getCartQuantity(item.id) > 0 && (
+                            <span className="w-12 text-center text-2xl font-bold text-white">
+                              {getCartQuantity(item.id)}
+                            </span>
+                          )}
+                          
+                          <Button
+                            onClick={() => addToCart(item)}
+                            className="w-12 h-12 p-0 bg-green-500/20 border border-green-500/50 hover:bg-green-500 text-green-400 hover:text-white rounded-xl"
+                          >
+                            <Plus size={20} />
+                          </Button>
+                        </>
                       )}
-                      
-                      <Button
-                        onClick={() => addToCart(item)}
-                        className="w-12 h-12 p-0 bg-green-500/20 border border-green-500/50 hover:bg-green-500 text-green-400 hover:text-white rounded-xl"
-                      >
-                        <Plus size={20} />
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -740,6 +806,55 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
         )}
       </CardContent>
     </Card>
+  );
+  const CategoryNavigationBar = () => (
+    <div className="sticky top-0 z-40 bg-gradient-to-b from-black/95 via-black/90 to-transparent backdrop-blur-lg border-b border-gray-700/50 px-4 py-3 shadow-2xl">
+      <div className="flex overflow-x-auto scrollbar-hide gap-3 pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <style jsx>{`
+          .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+          }
+        `}</style>
+        
+        {categories
+          .filter(cat => cat.active)
+          .sort((a, b) => a.ordre - b.ordre)
+          .map((category) => (
+            <button
+              key={category.id}
+              onClick={() => {
+                setSelectedCategory(category.id);
+                // Animation douce vers les articles si on n'y est pas encore
+                if (currentStep !== 'items') {
+                  setCurrentStep('items');
+                }
+              }}
+              className={`
+                flex items-center gap-3 px-5 py-3 rounded-full whitespace-nowrap 
+                transition-all duration-300 transform hover:scale-105 active:scale-95
+                min-w-fit shadow-lg backdrop-blur-sm
+                ${selectedCategory === category.id 
+                  ? 'bg-gradient-to-r from-yellow-500 to-yellow-400 text-black font-bold shadow-yellow-500/25 ring-2 ring-yellow-400/50' 
+                  : 'bg-gray-800/80 text-gray-300 hover:bg-gradient-to-r hover:from-yellow-500/20 hover:to-yellow-400/20 hover:text-white hover:shadow-yellow-500/10 border border-gray-600/50'
+                }
+              `}
+            >
+              <span className="text-xl">{category.emoji}</span>
+              <span className="text-base font-medium">{category.nom}</span>
+              
+              {/* Indicateur du nombre d'articles dans cette catégorie */}
+              {selectedCategory === category.id && (
+                <span className="ml-1 px-2 py-0.5 bg-black/20 rounded-full text-xs font-medium">
+                  {items.filter(item => item.categorieId === category.id && item.disponible).length}
+                </span>
+              )}
+            </button>
+          ))}
+      </div>
+      
+      {/* Gradient de fade pour indiquer le scroll horizontal */}
+      <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-black/90 to-transparent pointer-events-none" />
+    </div>
   );
 
   const CartReviewStep = () => (
