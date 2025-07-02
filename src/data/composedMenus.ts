@@ -629,7 +629,7 @@ export interface MenuStep {
                 label: `${item.nom} (à la pièce)`,
                 description: `${item.description || ''} - portion individuelle`,
                 priceAdjustment: -Math.round(item.prix * 0.7), // Réduction de 70% pour faire environ 30% du prix
-                emoji: `${getItemEmoji(item, categories)}🔸`
+                emoji: `${getItemEmoji(item, categories)}`
               });
             });
             return options;
@@ -654,7 +654,7 @@ export interface MenuStep {
                 label: `${item.nom} (demi part)`,
                 description: `${item.description || ''} - portion réduite`,
                 priceAdjustment: -Math.round(item.prix * 0.5), // Réduction de 50%
-                emoji: `${getItemEmoji(item, categories)}🔸`
+                emoji: `${getItemEmoji(item, categories)}`
               });
             });
             return options;

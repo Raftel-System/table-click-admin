@@ -46,10 +46,10 @@ export type OrderStatus = 'pending' | 'served' | 'paid' | 'cancelled';
 export interface Order {
     id: string;
     createdAt: string;
-    status: OrderStatus; // ✅ Type strict avec 4 statuts
+    status: OrderStatus;
     mode: 'sur_place' | 'emporter';
     tableNumber?: string;
-    numeroClient?: number;
+    numeroClient?: string;
     total: number;
     items: OrderItem[];
     noteCommande?: string;
@@ -411,7 +411,7 @@ export const useOrders = (restaurantSlug: string) => {
                     status: 'pending',
                     mode: activeOrder.orderType,
                     tableNumber: activeOrder.orderType === 'sur_place' ? activeOrder.tableNumber : undefined,
-                    numeroClient: activeOrder.orderType === 'emporter' ? parseInt(activeOrder.clientNumber) : undefined,
+                    numeroClient: activeOrder.orderType === 'emporter' ? activeOrder.clientNumber : undefined,
                     total: activeOrder.total,
                     items: orderItems,
                     noteCommande: orderData.noteCommande,
@@ -596,7 +596,8 @@ export const useOrders = (restaurantSlug: string) => {
             // 3. Préparer les données d'impression
             const printData = {
                 ip: config.printerIp,
-                table: order.mode === 'sur_place' ? order.tableNumber?.toString() : 'EMPORTER',
+                table: order.mode === 'sur_place' ? order.tableNumber : 'EMPORTER',
+                numeroClient: order.mode === 'emporter' ? order.numeroClient : 0,
                 commandeId: order.id,
                 // ✅ Note globale de la commande si présente
                 ...(order.noteCommande && { noteCommande: order.noteCommande }),

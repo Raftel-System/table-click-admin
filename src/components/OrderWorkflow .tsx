@@ -115,8 +115,8 @@ interface OrderWorkflowProps {
 // Helpers pour les portions
 const PORTION_OPTIONS = {
   normal: { label: '', priceMultiplier: 1, suffix: '' },
-  piece: { label: 'à la pièce', priceMultiplier: 0.3, suffix: ' 🔸' },
-  demi: { label: 'demi part', priceMultiplier: 0.5, suffix: ' 🔸' }
+  piece: { label: 'à la pièce', priceMultiplier: 0.3, suffix: ' (piece)'},
+  demi: { label: 'demi part', priceMultiplier: 0.5, suffix: ' (demi part)'},
 };
 
 const canHavePortions = (categoryId: string): boolean => {
@@ -124,10 +124,10 @@ const canHavePortions = (categoryId: string): boolean => {
 };
 
 const getAvailablePortions = (categoryId: string): string[] => {
-  if (categoryId === '5f4d89') {
+  if (categoryId === '4bad96') {
     return ['normal', 'piece'];
   }
-  if (categoryId === '4bad96') {
+  if (categoryId === '5f4d89') {
     return ['normal', 'demi'];
   }
   return ['normal'];
@@ -663,7 +663,6 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
                               <div className="flex-1">
                                 <div className="text-sm text-white">
                                   {portionType === 'normal' ? 'Portion normale' : portionOption.label}
-                                  {portionOption.suffix}
                                 </div>
                                 <div className="text-xs text-gray-400">
                                   {adjustedPrice.toFixed(2)}{currency}
@@ -892,11 +891,6 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
                         <div>
                           <h4 className="text-lg font-semibold text-white">
                             {item.nom}
-                            {item.portionLabel && (
-                              <span className="text-sm text-orange-400 ml-2">
-                                {item.portionLabel}
-                              </span>
-                            )}
                           </h4>
                           <p className="text-gray-400">
                             {item.quantite} × {item.prix.toFixed(2)}{currency}
