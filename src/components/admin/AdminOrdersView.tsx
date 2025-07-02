@@ -377,7 +377,7 @@ const AdminOrdersView: React.FC = () => {
                       value={editedOrder.mode === 'sur_place' ? editedOrder.tableNumber || '' : editedOrder.numeroClient || ''}
                       onChange={(e) => {
                         if (editedOrder.mode === 'sur_place') {
-                          setEditedOrder(prev => ({ ...prev, tableNumber: parseInt(e.target.value) || undefined }));
+                          setEditedOrder(prev => ({ ...prev, tableNumber: e.target.value || undefined }));
                         } else {
                           setEditedOrder(prev => ({ ...prev, numeroClient: parseInt(e.target.value) || undefined }));
                         }

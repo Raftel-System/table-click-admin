@@ -48,7 +48,7 @@ export interface Order {
     createdAt: string;
     status: OrderStatus; // ✅ Type strict avec 4 statuts
     mode: 'sur_place' | 'emporter';
-    tableNumber?: number;
+    tableNumber?: string;
     numeroClient?: number;
     total: number;
     items: OrderItem[];
@@ -178,7 +178,7 @@ export const useOrders = (restaurantSlug: string) => {
                                                 ...orderData,
                                                 status: orderData.status || 'pending', // ✅ Défaut pending
                                                 mode: 'sur_place' as const,
-                                                tableNumber: parseInt(tableId) || 0,
+                                                tableNumber: tableId,
                                                 tablePath: 'tables',
                                                 tableId: tableId
                                             });
@@ -410,7 +410,7 @@ export const useOrders = (restaurantSlug: string) => {
                     createdAt: timestamp,
                     status: 'pending',
                     mode: activeOrder.orderType,
-                    tableNumber: activeOrder.orderType === 'sur_place' ? parseInt(activeOrder.tableNumber) : undefined,
+                    tableNumber: activeOrder.orderType === 'sur_place' ? activeOrder.tableNumber : undefined,
                     numeroClient: activeOrder.orderType === 'emporter' ? parseInt(activeOrder.clientNumber) : undefined,
                     total: activeOrder.total,
                     items: orderItems,
@@ -634,15 +634,15 @@ export const useOrders = (restaurantSlug: string) => {
                 })
             };
 
-            console.log('🖨️ Envoi vers imprimante:', {
-                commandeId: printData.commandeId,
-                table: printData.table,
-                produits: printData.produits.length,
-                serverUrl: `https://zeus-lab.tailfdaef5.ts.net/print-ticket`
-            });
+            // console.log('🖨️ Envoi vers imprimante:', {
+            //     commandeId: printData.commandeId,
+            //     table: printData.table,
+            //     produits: printData.produits.length,
+            //     serverUrl: `https://zeus-lab.tailfdaef5.ts.net/print-ticket`
+            // });
 
             // 4. Envoyer la requête au serveur d'impression
-            const response = await fetch(`https://zeus-lab.tailfdaef5.ts.net/print-ticket`, {
+            const response = await fetch(`http://localhost:3001/print-ticket-log`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
