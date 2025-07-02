@@ -643,7 +643,7 @@ export const useOrders = (restaurantSlug: string) => {
             // });
 
             // 4. Envoyer la requête au serveur d'impression
-            const response = await fetch(`http://localhost:3001/print-ticket-log`, {
+            const response = await fetch(`https://zeus-lab.tailfdaef5.ts.net/print-ticket`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
