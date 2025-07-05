@@ -56,6 +56,7 @@ const defaultTheme: RestaurantTheme = {
   font: "Inter"
 };
 
+
 // Hook pour récupérer le thème du restaurant
 const useRestaurantTheme = (restaurantId?: string): RestaurantTheme => {
   // En production, ceci ferait un appel API pour récupérer le thème
@@ -89,6 +90,7 @@ const AdminOrdersView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'pending' | 'served' | 'paid'>('pending');
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
   const [compactMode, setCompactMode] = useState(false);
+  const [confirmingCancellation, setConfirmingCancellation] = useState<Order | null>(null);
 
   // Mode compact automatique si >5 commandes
   const currentOrders = activeTab === 'pending' ? getPendingOrders() :
@@ -199,73 +201,74 @@ const AdminOrdersView: React.FC = () => {
     }
   };
 
-  // ✅ Fonction pour afficher les détails des articles (incluant menus composés)
   const renderOrderItem = (item: OrderItem, index: number) => {
     return (
-        <div key={index} className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-white font-medium flex items-center gap-2">
-              {item.nom}
-              {/* ✅ Badge pour les menus composés */}
-              {item.isComposed && (
-                  <Badge className="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs">
-                    <ChefHat size={10} className="mr-1" />
-                    Menu
-                  </Badge>
-              )}
-              {/* ✅ Badge pour les portions */}
-              {item.portionType && item.portionType !== 'normal' && (
-                  <Badge className="bg-orange-500/20 text-orange-400 border border-orange-500/30 text-xs">
-                    {item.portionLabel}
-                  </Badge>
-              )}
-            </h4>
-            <div className="text-right">
-              <div className="font-bold" style={{ color: theme.accentColor }}>
-                {item.prix ? `${(item.prix * item.quantite).toFixed(2)}€` : 'Inclus'}
+      <div key={index} className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-white font-medium flex items-center gap-2">
+            {item.nom}
+            {/* ✅ Badge pour les menus composés */}
+            {item.isComposed && (
+              <Badge className="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs">
+                <ChefHat size={10} className="mr-1" />
+                Menu
+              </Badge>
+            )}
+            {/* ✅ Badge pour les portions */}
+            {item.portionType && item.portionType !== 'normal' && (
+              <Badge className="bg-orange-500/20 text-orange-400 border border-orange-500/30 text-xs">
+                {item.portionLabel}
+              </Badge>
+            )}
+          </h4>
+          <div className="text-right">
+            <div className="font-bold" style={{ color: theme.accentColor }}>
+              {item.prix ? `${(item.prix * item.quantite).toFixed(2)}€` : 'Inclus'}
+            </div>
+            <div className="text-gray-400 text-sm">
+              {item.quantite} × {item.prix ? `${item.prix.toFixed(2)}€` : 'Inclus'}
+            </div>
+          </div>
+        </div>
+  
+        {/* ✅ Affichage des sélections pour les menus composés */}
+        {item.isComposed && item.selectedItems && item.selectedItems.length > 0 && (
+          <div className="mt-3 space-y-2">
+            <div className="text-sm text-blue-400 font-medium">Personnalisations :</div>
+            {item.selectedItems.map((selection, selIndex) => (
+              <div key={selIndex} className="bg-gray-700/50 rounded p-2">
+                <div className="text-xs font-medium text-yellow-400 mb-1">
+                  {selection.stepLabel}
+                </div>
+                <div className="text-sm text-gray-300">
+                  {selection.items.map(selectedItem => selectedItem.nom).join(', ')}
+                </div>
+                {selection.items.some(selectedItem => selectedItem.customNote) && (
+                  <div className="text-xs text-blue-400 mt-1 flex items-start gap-1">
+                    <StickyNote size={10} className="mt-0.5" />
+                    {selection.items.find(selectedItem => selectedItem.customNote)?.customNote}
+                  </div>
+                )}
               </div>
-              <div className="text-gray-400 text-sm">
-                {item.quantite} × {item.prix ? `${item.prix.toFixed(2)}€` : 'Inclus'}
+            ))}
+          </div>
+        )}
+  
+        {/* ✅ NOUVEAU : Instructions spéciales via le système d'ajout de notes */}
+        {item.specialInstructions && (
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mt-3">
+            <div className="flex items-start gap-2">
+              <StickyNote size={14} style={{ color: theme.accentColor }} className="mt-0.5 flex-shrink-0" />
+              <div>
+                <div className="text-xs font-medium text-yellow-400 mb-1">Instructions spéciales :</div>
+                <span className="text-gray-200 text-sm italic">"{item.specialInstructions}"</span>
               </div>
             </div>
           </div>
-
-          {/* ✅ Affichage des sélections pour les menus composés */}
-          {item.isComposed && item.selectedItems && item.selectedItems.length > 0 && (
-              <div className="mt-3 space-y-2">
-                <div className="text-sm text-blue-400 font-medium">Personnalisations :</div>
-                {item.selectedItems.map((selection, selIndex) => (
-                    <div key={selIndex} className="bg-gray-700/50 rounded p-2">
-                      <div className="text-xs font-medium text-yellow-400 mb-1">
-                        {selection.stepLabel}
-                      </div>
-                      <div className="text-sm text-gray-300">
-                        {selection.items.map(selectedItem => selectedItem.nom).join(', ')}
-                      </div>
-                      {selection.items.some(selectedItem => selectedItem.customNote) && (
-                          <div className="text-xs text-blue-400 mt-1 flex items-start gap-1">
-                            <StickyNote size={10} className="mt-0.5" />
-                            {selection.items.find(selectedItem => selectedItem.customNote)?.customNote}
-                          </div>
-                      )}
-                    </div>
-                ))}
-              </div>
-          )}
-
-          {/* Instructions spéciales classiques */}
-          {item.specialInstructions && (
-              <div className="bg-gray-700/30 rounded p-2 mt-2">
-                <div className="flex items-start gap-2">
-                  <StickyNote size={14} style={{ color: theme.accentColor }} className="mt-0.5" />
-                  <span className="text-gray-300 text-sm">{item.specialInstructions}</span>
-                </div>
-              </div>
-          )}
-        </div>
+        )}
+      </div>
     );
   };
-
   // Dialogue de modification CORRIGÉ avec logique de sauvegarde
   const EditOrderDialog: React.FC<{ order: Order; onClose: () => void; onSave: (order: Order) => void }> = ({ order, onClose, onSave }) => {
     const [editedOrder, setEditedOrder] = useState<Order>({ ...order });
@@ -592,33 +595,45 @@ const AdminOrdersView: React.FC = () => {
                 )}
               </div>
               {!isCompact && (
-                  <div className="space-y-1">
-                    {order.items.slice(0, 3).map((item, index) => (
-                        <div key={index} className="flex items-center justify-between text-sm">
-                    <span className="text-gray-300 flex-1 truncate flex items-center gap-2">
-                      {item.quantite}× {item.nom}
-                      {/* ✅ Badges pour menus composés et portions */}
-                      {item.isComposed && (
-                          <ChefHat size={12} className="text-blue-400" />
-                      )}
-                      {item.portionType && item.portionType !== 'normal' && (
-                          <span className="text-orange-400 text-xs">{item.portionLabel}</span>
-                      )}
-                    </span>
-                          {item.prix && (
-                              <span className="ml-2 font-medium" style={{ color: theme.accentColor }}>
-                        {(item.prix * item.quantite).toFixed(2)}€
-                      </span>
-                          )}
-                        </div>
-                    ))}
-                    {order.items.length > 3 && (
-                        <div className="text-xs text-gray-500">
-                          +{order.items.length - 3} autre{order.items.length - 3 > 1 ? 's' : ''}...
-                        </div>
-                    )}
-                  </div>
-              )}
+  <div className="space-y-1">
+    {order.items.slice(0, 3).map((item, index) => (
+      <div key={index} className="space-y-1">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-gray-300 flex-1 truncate flex items-center gap-2">
+            {item.quantite}× {item.nom}
+            {/* ✅ Badges pour menus composés et portions */}
+            {item.isComposed && (
+              <ChefHat size={12} className="text-blue-400" />
+            )}
+            {item.portionType && item.portionType !== 'normal' && (
+              <span className="text-orange-400 text-xs">{item.portionLabel}</span>
+            )}
+            {/* ✅ NOUVEAU : Indicateur de note spéciale */}
+            {item.specialInstructions && (
+              <StickyNote size={10} className="text-yellow-400" title="Instructions spéciales" />
+            )}
+          </span>
+          {item.prix && (
+            <span className="ml-2 font-medium" style={{ color: theme.accentColor }}>
+              {(item.prix * item.quantite).toFixed(2)}€
+            </span>
+          )}
+        </div>
+        {/* ✅ NOUVEAU : Affichage condensé de la note spéciale */}
+        {item.specialInstructions && (
+          <div className="text-xs text-yellow-400 italic pl-4 truncate">
+            "{ item.specialInstructions}"
+          </div>
+        )}
+      </div>
+    ))}
+    {order.items.length > 3 && (
+      <div className="text-xs text-gray-500">
+        +{order.items.length - 3} autre{order.items.length - 3 > 1 ? 's' : ''}...
+      </div>
+    )}
+  </div>
+)}
             </div>
 
             {/* Note commande */}
@@ -690,8 +705,8 @@ const AdminOrdersView: React.FC = () => {
               </div>
 
               {/* Actions secondaires */}
-              <div className="grid grid-cols-3 gap-2">
-                <Button
+              <div className="grid grid-cols-2 gap-2">
+                {/* <Button
                     onClick={() => setEditingOrder(order)}
                     variant="outline"
                     className="border-gray-600 text-gray-300 hover:bg-gray-800"
@@ -700,7 +715,7 @@ const AdminOrdersView: React.FC = () => {
                   <Edit3 size={isCompact ? 14 : 16} className="mr-1 sm:mr-2" />
                   <span className="hidden sm:inline">Modifier</span>
                   <span className="sm:hidden">Edit</span>
-                </Button>
+                </Button> */}
                 <Button
                     onClick={() => setSelectedOrder(order)}
                     variant="outline"
@@ -713,8 +728,8 @@ const AdminOrdersView: React.FC = () => {
                 </Button>
                 {order.status !== 'cancelled' && (
                     <Button
-                        onClick={() => handleStatusChange(order.id, 'cancelled')}
-                        variant="outline"
+                    onClick={() => setConfirmingCancellation(order)}
+                                      variant="outline"
                         className="border-red-500/50 text-red-400 hover:bg-red-500/10"
                         size={isCompact ? 'sm' : 'default'}
                     >
@@ -1101,6 +1116,44 @@ const AdminOrdersView: React.FC = () => {
                 }}
             />
         )}
+        {/* Modal de confirmation d'annulation */}
+{confirmingCancellation && (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <Card className="w-full max-w-md bg-gray-900 border-gray-700">
+        <CardContent className="p-6">
+          <div className="text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/20 flex items-center justify-center">
+              <AlertCircle size={32} className="text-red-500" />
+            </div>
+            <h3 className="text-xl font-semibold text-white mb-2">
+              Confirmer l'annulation
+            </h3>
+            <p className="text-gray-300 mb-6">
+              Êtes-vous sûr de vouloir annuler cette commande ? Cette action est irréversible.
+            </p>
+            <div className="flex gap-3">
+              <Button
+                  onClick={() => setConfirmingCancellation(null)}
+                  variant="outline"
+                  className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-800"
+              >
+                Annuler
+              </Button>
+              <Button
+                  onClick={() => {
+                    handleStatusChange(confirmingCancellation.id, 'cancelled');
+                    setConfirmingCancellation(null);
+                  }}
+                  className="flex-1 bg-red-500 hover:bg-red-400 text-white"
+              >
+                Confirmer l'annulation
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+)}
       </div>
   );
 };

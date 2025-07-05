@@ -1,4 +1,4 @@
-// OrderWorkflow modifié avec TableSelectorDialog et gestion "à emporter"
+// OrderWorkflow modifié avec gestion des instructions spéciales
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Coffee, 
@@ -28,6 +28,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import MenuStepper from '@/components/MenuStepper';
+import SpecialInstructionDialog from '@/components/SpecialInstructionDialog';
 import { 
   isComposedMenu, 
   getComposedMenuConfig,
@@ -157,6 +158,14 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
   } | null>(null);
   const [showPortionOptions, setShowPortionOptions] = useState<Record<string, boolean>>({});
   const [showTableSelector, setShowTableSelector] = useState(false);
+  
+  // ✅ États pour les instructions spéciales
+  const [showSpecialInstruction, setShowSpecialInstruction] = useState(false);
+  const [pendingNoteItem, setPendingNoteItem] = useState<{
+    cartItem: CartItem;
+    cartIndex: number;
+  } | null>(null);
+  
   const { submitOrder, printTicket, orders } = useOrders('talya-bercy');
 
   const [order, setOrder] = useState<ActiveOrder>({
@@ -204,25 +213,24 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
         setCurrentStep('service-type'); 
         break;
       case 'items': 
-        // Plus de retour vers categories, on va directement au service-type
         setCurrentStep('service-type'); 
         setSelectedCategory(''); 
         break;
       case 'cart-review': 
-        setCurrentStep('items'); // Retour vers les articles avec la barre sticky
+        setCurrentStep('items');
         break;
       case 'finalization': 
         setCurrentStep('cart-review'); 
         break;
     }
   };
+
   const goNext = () => {
     switch (currentStep) {
       case 'service-type': 
         setCurrentStep('categories'); 
         break;
       case 'categories': 
-        // Auto-transition vers items géré dans CategoriesStep
         break;
       case 'items': 
         if (order.cart.length > 0) setCurrentStep('cart-review'); 
@@ -231,6 +239,22 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
         setCurrentStep('finalization'); 
         break;
     }
+  };
+
+  // ✅ Gestion des instructions spéciales
+  const handleSaveSpecialNote = (note: string) => {
+    if (pendingNoteItem) {
+      setOrder(prev => ({
+        ...prev,
+        cart: prev.cart.map((cartItem, index) => 
+          index === pendingNoteItem.cartIndex 
+            ? { ...cartItem, note: note.trim() || undefined }
+            : cartItem
+        )
+      }));
+      setPendingNoteItem(null);
+    }
+    setShowSpecialInstruction(false);
   };
 
   // Gestion menus composés
@@ -243,7 +267,16 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
   };
 
   const handleAddComposedToCart = (composedItem: CartItem) => {
-    setOrder(prev => ({ ...prev, cart: [...prev.cart, composedItem] }));
+    const newCart = [...order.cart, composedItem];
+    setOrder(prev => ({ ...prev, cart: newCart }));
+    
+    // ✅ Déclencher instructions spéciales pour menu composé
+    setPendingNoteItem({
+      cartItem: composedItem,
+      cartIndex: newCart.length - 1
+    });
+    setShowSpecialInstruction(true);
+    
     setShowMenuStepper(false);
     setCurrentComposedItem(null);
   };
@@ -286,7 +319,15 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
         portionLabel: portionLabel || undefined
       };
       
-      setOrder(prev => ({ ...prev, cart: [...prev.cart, newItem] }));
+      const newCart = [...order.cart, newItem];
+      setOrder(prev => ({ ...prev, cart: newCart }));
+      
+      // ✅ Déclencher instructions spéciales pour article simple
+      setPendingNoteItem({
+        cartItem: newItem,
+        cartIndex: newCart.length - 1
+      });
+      setShowSpecialInstruction(true);
     }
   };
 
@@ -333,7 +374,6 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
   };
 
   const handleSubmit = async () => {
-    // Validations de base
     if (order.cart.length === 0) return;
 
     if (order.orderType === 'sur_place' && !order.tableNumber.trim()) {
@@ -348,19 +388,14 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
     setLoading(true);
 
     try {
-      console.log('🔄 Soumission de la commande...');
-
-      // ✅ CRÉATION ET IMPRESSION AUTOMATIQUE en une seule étape
       const orderId = await submitOrder(order);
 
-      // ✅ Message de succès simple
       const successMessage = order.orderType === 'sur_place'
           ? `✅ Commande table ${order.tableNumber} créée et imprimée`
           : `✅ Commande n°${order.clientNumber} créée et imprimée`;
 
       alert(successMessage);
 
-      // ✅ RÉINITIALISER LE FORMULAIRE
       setOrder(prev => ({
         ...prev,
         cart: [],
@@ -376,22 +411,17 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
     } catch (error: any) {
       console.error('❌ Erreur soumission:', error);
 
-      // ✅ Gestion des erreurs d'impression dans le message
       const isCreationError = error?.message?.includes('Impossible de soumettre la commande');
 
       if (isCreationError) {
-        // Erreur lors de la création de la commande
         alert(`❌ Erreur: ${error?.message || 'Impossible de créer la commande'}`);
       } else {
-        // La commande a probablement été créée mais l'impression a échoué
-        // (dans ce cas, submitOrder ne throw pas mais log l'erreur)
         const partialSuccessMessage = order.orderType === 'sur_place'
             ? `✅ Commande table ${order.tableNumber} créée\n⚠️ Problème d'impression - vérifiez le ticket`
             : `✅ Commande n°${order.clientNumber} créée\n⚠️ Problème d'impression - vérifiez le ticket`;
 
         alert(partialSuccessMessage);
 
-        // Réinitialiser quand même le formulaire si la commande a été créée
         setOrder(prev => ({
           ...prev,
           cart: [],
@@ -496,7 +526,6 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
   );
 
   const CategoriesStep = () => {
-    // Auto-sélection de la première catégorie et transition vers les articles
     useEffect(() => {
       if (!selectedCategory && categories.length > 0) {
         const firstCategory = categories
@@ -505,7 +534,6 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
         
         if (firstCategory) {
           setSelectedCategory(firstCategory.id);
-          // Transition automatique vers les articles après un court délai
           setTimeout(() => setCurrentStep('items'), 500);
         }
       }
@@ -517,7 +545,6 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
           <h2 className="text-4xl font-bold text-white mb-4">Que souhaitez-vous commander ?</h2>
           <p className="text-gray-400 text-lg">Sélection automatique en cours...</p>
           
-          {/* Indicateur de chargement élégant */}
           <div className="flex justify-center mt-8">
             <div className="w-8 h-8 border-2 border-yellow-500/30 border-t-yellow-500 rounded-full animate-spin"></div>
           </div>
@@ -526,16 +553,58 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
     );
   };
 
-  const ItemsStep = () => (
-    <div className="space-y-0"> {/* Removed space-y-6 pour coller la barre */}
+  const CategoryNavigationBar = () => (
+    <div className="sticky top-0 z-40 bg-gradient-to-b from-black/95 via-black/90 to-transparent backdrop-blur-lg border-b border-gray-700/50 px-4 py-3 shadow-2xl">
+      <div className="flex overflow-x-auto scrollbar-hide gap-3 pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <style jsx>{`
+          .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+          }
+        `}</style>
+        
+        {categories
+          .filter(cat => cat.active)
+          .sort((a, b) => a.ordre - b.ordre)
+          .map((category) => (
+            <button
+              key={category.id}
+              onClick={() => {
+                setSelectedCategory(category.id);
+                if (currentStep !== 'items') {
+                  setCurrentStep('items');
+                }
+              }}
+              className={`
+                flex items-center gap-3 px-5 py-3 rounded-full whitespace-nowrap 
+                transition-all duration-300 transform hover:scale-105 active:scale-95
+                min-w-fit shadow-lg backdrop-blur-sm
+                ${selectedCategory === category.id 
+                  ? 'bg-gradient-to-r from-yellow-500 to-yellow-400 text-black font-bold shadow-yellow-500/25 ring-2 ring-yellow-400/50' 
+                  : 'bg-gray-800/80 text-gray-300 hover:bg-gradient-to-r hover:from-yellow-500/20 hover:to-yellow-400/20 hover:text-white hover:shadow-yellow-500/10 border border-gray-600/50'
+                }
+              `}
+            >
+              <span className="text-xl">{category.emoji}</span>
+              <span className="text-base font-medium">{category.nom}</span>
+              
+              {selectedCategory === category.id && (
+                <span className="ml-1 px-2 py-0.5 bg-black/20 rounded-full text-xs font-medium">
+                  {items.filter(item => item.categorieId === category.id && item.disponible).length}
+                </span>
+              )}
+            </button>
+          ))}
+      </div>
       
-      {/* 🌟 BARRE DE NAVIGATION STICKY PREMIUM */}
+      <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-black/90 to-transparent pointer-events-none" />
+    </div>
+  );
+
+  const ItemsStep = () => (
+    <div className="space-y-0">
       <CategoryNavigationBar />
       
-      {/* Contenu principal avec padding-top pour compenser la barre sticky */}
       <div className="pt-6 space-y-6">
-        
-        {/* Header de la section avec nom de catégorie */}
         <div className="flex items-center justify-between px-4">
           <div>
             <h2 className="text-3xl font-bold text-white flex items-center gap-3">
@@ -549,7 +618,6 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
             </p>
           </div>
           
-          {/* Bouton panier flottant amélioré */}
           {order.cart.length > 0 && (
             <Button
               onClick={() => setCurrentStep('cart-review')}
@@ -562,8 +630,7 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
             </Button>
           )}
         </div>
-  
-        {/* Message si aucun article dans la catégorie */}
+
         {filteredItems.length === 0 ? (
           <div className="text-center py-16 px-4">
             <div className="text-6xl mb-4">🍽️</div>
@@ -571,7 +638,6 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
             <p className="text-gray-400">Cette catégorie est temporairement vide</p>
           </div>
         ) : (
-          /* Grille des articles avec animation d'entrée */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-4">
             {filteredItems.map((item, index) => {
               const category = categories.find(cat => cat.id === item.categorieId);
@@ -579,7 +645,7 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
               const hasPortionOptions = canHavePortions(item.categorieId);
               const availablePortions = getAvailablePortions(item.categorieId);
               const showOptions = showPortionOptions[item.id] || false;
-  
+
               return (
                 <Card 
                   key={item.id} 
@@ -604,7 +670,6 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
                   `}</style>
                   
                   <CardContent className="p-6">
-                    {/* Votre contenu d'article existant ici */}
                     <div className="text-center mb-4">
                       <div className="text-5xl mb-3">{category?.emoji || '🍽️'}</div>
                       <h3 className="text-xl font-bold text-white mb-2">{item.nom}</h3>
@@ -628,14 +693,14 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
                             Nouveau
                           </Badge>
                         )}
-  
+
                         {isComposed && (
                           <Badge className="bg-blue-500/20 text-blue-400 border border-blue-500/30">
                             <ChefHat size={12} className="mr-1" />
                             Menu
                           </Badge>
                         )}
-  
+
                         {hasPortionOptions && (
                           <Badge className="bg-orange-500/20 text-orange-400 border border-orange-500/30">
                             Portions
@@ -643,8 +708,7 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
                         )}
                       </div>
                     </div>
-  
-                    {/* Votre logique de portions et boutons existante... */}
+
                     {hasPortionOptions && showOptions && (
                       <div className="mb-4 space-y-2 bg-gray-700/30 rounded-lg p-3">
                         <div className="text-sm text-yellow-400 font-medium mb-2">
@@ -696,7 +760,7 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
                         })}
                       </div>
                     )}
-  
+
                     <div className="flex items-center justify-center gap-4">
                       {isComposed ? (
                         <Button
@@ -761,6 +825,13 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
             <div>
               <h4 className="text-lg font-semibold text-white">{item.nom}</h4>
               <p className="text-gray-400">Menu personnalisé</p>
+              {/* ✅ Affichage de la note spéciale */}
+              {item.note && (
+                <div className="text-xs text-blue-400 mt-1 flex items-start gap-1">
+                  <StickyNote size={10} className="mt-0.5 flex-shrink-0" />
+                  <span className="italic">"{item.note}"</span>
+                </div>
+              )}
             </div>
           </div>
           
@@ -805,55 +876,6 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
         )}
       </CardContent>
     </Card>
-  );
-  const CategoryNavigationBar = () => (
-    <div className="sticky top-0 z-40 bg-gradient-to-b from-black/95 via-black/90 to-transparent backdrop-blur-lg border-b border-gray-700/50 px-4 py-3 shadow-2xl">
-      <div className="flex overflow-x-auto scrollbar-hide gap-3 pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-        <style jsx>{`
-          .scrollbar-hide::-webkit-scrollbar {
-            display: none;
-          }
-        `}</style>
-        
-        {categories
-          .filter(cat => cat.active)
-          .sort((a, b) => a.ordre - b.ordre)
-          .map((category) => (
-            <button
-              key={category.id}
-              onClick={() => {
-                setSelectedCategory(category.id);
-                // Animation douce vers les articles si on n'y est pas encore
-                if (currentStep !== 'items') {
-                  setCurrentStep('items');
-                }
-              }}
-              className={`
-                flex items-center gap-3 px-5 py-3 rounded-full whitespace-nowrap 
-                transition-all duration-300 transform hover:scale-105 active:scale-95
-                min-w-fit shadow-lg backdrop-blur-sm
-                ${selectedCategory === category.id 
-                  ? 'bg-gradient-to-r from-yellow-500 to-yellow-400 text-black font-bold shadow-yellow-500/25 ring-2 ring-yellow-400/50' 
-                  : 'bg-gray-800/80 text-gray-300 hover:bg-gradient-to-r hover:from-yellow-500/20 hover:to-yellow-400/20 hover:text-white hover:shadow-yellow-500/10 border border-gray-600/50'
-                }
-              `}
-            >
-              <span className="text-xl">{category.emoji}</span>
-              <span className="text-base font-medium">{category.nom}</span>
-              
-              {/* Indicateur du nombre d'articles dans cette catégorie */}
-              {selectedCategory === category.id && (
-                <span className="ml-1 px-2 py-0.5 bg-black/20 rounded-full text-xs font-medium">
-                  {items.filter(item => item.categorieId === category.id && item.disponible).length}
-                </span>
-              )}
-            </button>
-          ))}
-      </div>
-      
-      {/* Gradient de fade pour indiquer le scroll horizontal */}
-      <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-black/90 to-transparent pointer-events-none" />
-    </div>
   );
 
   const CartReviewStep = () => (
@@ -900,6 +922,13 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
                               </span>
                             )}
                           </p>
+                          {/* ✅ Affichage de la note spéciale */}
+                          {item.note && (
+                            <div className="text-xs text-blue-400 mt-1 flex items-start gap-1">
+                              <StickyNote size={10} className="mt-0.5 flex-shrink-0" />
+                              <span className="italic">"{item.note}"</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                       
@@ -1054,7 +1083,7 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
             </div>
           )}
 
-          <div className="space-y-3">
+         {/*  <div className="space-y-3">
             <Label className="text-white font-medium flex items-center gap-2">
               <StickyNote size={16} className="text-yellow-400" />
               Instructions spéciales (optionnel)
@@ -1066,7 +1095,7 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
               className="bg-gray-700/50 border-gray-600 text-white rounded-2xl resize-none"
               rows={3}
             />
-          </div>
+          </div> */}
         </CardContent>
       </Card>
 
@@ -1144,6 +1173,7 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
         {currentStep === 'finalization' && <FinalizationStep />}
       </div>
 
+      {/* ✅ Modal MenuStepper pour menus composés */}
       {currentComposedItem && (
         <MenuStepper
           isOpen={showMenuStepper}
@@ -1160,6 +1190,19 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
         />
       )}
 
+      {/* ✅ Modal d'instructions spéciales */}
+      <SpecialInstructionDialog
+        isOpen={showSpecialInstruction}
+        onClose={() => {
+          setShowSpecialInstruction(false);
+          setPendingNoteItem(null);
+        }}
+        onSave={handleSaveSpecialNote}
+        itemName={pendingNoteItem?.cartItem.nom}
+        defaultNote={pendingNoteItem?.cartItem.note || ''}
+      />
+
+      {/* ✅ Modal de sélection de table */}
       <TableSelectorDialog
         isOpen={showTableSelector}
         onClose={() => setShowTableSelector(false)}
