@@ -1,4 +1,4 @@
-// src/hooks/useMenu.ts
+// src/hooks/useMenu.ts - Version étendue pour menus composés
 import { useState, useEffect } from 'react';
 import {
     collection,
@@ -14,6 +14,7 @@ import {
     getDocs
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import type { ComposedMenuConfig } from '@/types/composedMenu';
 
 export interface MenuCategory {
     id: string;
@@ -23,16 +24,20 @@ export interface MenuCategory {
     emoji: string;
 }
 
+// ✅ MenuItem étendu pour supporter les menus composés
 export interface MenuItem {
     id: string;
     nom: string;
     categorieId: string;
-    prix: number; // En euros (ex: 12.50)
+    prix: number;
     description: string;
     disponible: boolean;
     ordre: number;
     isPopular: boolean;
     isSpecial: boolean;
+    // 🆕 Nouveaux champs pour menus composés
+    isComposedMenu?: boolean;
+    composedMenuConfig?: ComposedMenuConfig;
 }
 
 export const useMenuCategories = (restaurantSlug: string) => {
@@ -70,15 +75,12 @@ export const useMenuCategories = (restaurantSlug: string) => {
     const addCategory = async (categoryData: Omit<MenuCategory, 'id'>) => {
         try {
             const categoriesRef = collection(db, 'restaurants', restaurantSlug, 'menuCategories');
-
-            // ✅ S'assurer que les valeurs par défaut sont définies
             const categoryWithDefaults = {
                 nom: categoryData.nom || '',
                 ordre: categoryData.ordre || 1,
                 active: categoryData.active ?? true,
                 emoji: categoryData.emoji || '📋'
             };
-
             await addDoc(categoriesRef, categoryWithDefaults);
         } catch (error) {
             console.error('Error adding category:', error);
@@ -89,8 +91,6 @@ export const useMenuCategories = (restaurantSlug: string) => {
     const updateCategory = async (categoryId: string, categoryData: Partial<MenuCategory>) => {
         try {
             const categoryRef = doc(db, 'restaurants', restaurantSlug, 'menuCategories', categoryId);
-
-            // Filtrer les valeurs undefined pour éviter l'erreur Firebase
             const cleanData = Object.entries(categoryData).reduce((acc, [key, value]) => {
                 if (value !== undefined) {
                     acc[key] = value;
@@ -112,7 +112,6 @@ export const useMenuCategories = (restaurantSlug: string) => {
 
     const deleteCategory = async (categoryId: string) => {
         try {
-            // Vérifier s'il y a des articles dans cette catégorie
             const itemsRef = collection(db, 'restaurants', restaurantSlug, 'menuItems');
             const itemsQuery = query(itemsRef, where('categorieId', '==', categoryId));
             const itemsSnapshot = await getDocs(itemsQuery);
@@ -163,7 +162,10 @@ export const useMenuItems = (restaurantSlug: string) => {
                         disponible: data.disponible ?? true,
                         ordre: data.ordre || 1,
                         isPopular: data.isPopular ?? false,
-                        isSpecial: data.isSpecial ?? false
+                        isSpecial: data.isSpecial ?? false,
+                        // 🆕 Nouveaux champs pour menus composés
+                        isComposedMenu: data.isComposedMenu ?? false,
+                        composedMenuConfig: data.composedMenuConfig || undefined
                     };
                 }) as MenuItem[];
 
@@ -184,8 +186,6 @@ export const useMenuItems = (restaurantSlug: string) => {
     const addItem = async (itemData: Omit<MenuItem, 'id'>) => {
         try {
             const itemsRef = collection(db, 'restaurants', restaurantSlug, 'menuItems');
-
-            // ✅ Assurer des valeurs par défaut pour éviter undefined
             const itemWithDefaults = {
                 nom: itemData.nom || '',
                 categorieId: itemData.categorieId || '',
@@ -194,7 +194,10 @@ export const useMenuItems = (restaurantSlug: string) => {
                 disponible: itemData.disponible ?? true,
                 ordre: itemData.ordre || 1,
                 isPopular: itemData.isPopular ?? false,
-                isSpecial: itemData.isSpecial ?? false
+                isSpecial: itemData.isSpecial ?? false,
+                // 🆕 Nouveaux champs pour menus composés
+                isComposedMenu: itemData.isComposedMenu ?? false,
+                ...(itemData.composedMenuConfig && { composedMenuConfig: itemData.composedMenuConfig })
             };
 
             await addDoc(itemsRef, itemWithDefaults);
@@ -207,8 +210,6 @@ export const useMenuItems = (restaurantSlug: string) => {
     const updateItem = async (itemId: string, itemData: Partial<MenuItem>) => {
         try {
             const itemRef = doc(db, 'restaurants', restaurantSlug, 'menuItems', itemId);
-
-            // Filtrer les valeurs undefined pour éviter l'erreur Firebase
             const cleanData = Object.entries(itemData).reduce((acc, [key, value]) => {
                 if (value !== undefined) {
                     acc[key] = value;
