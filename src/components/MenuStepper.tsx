@@ -378,7 +378,7 @@ const MenuStepper: React.FC<MenuStepperProps> = ({
           </div>
 
           {/* Note personnalisée */}
-          {currentStep.allowCustomNote && (
+          {/* {currentStep.allowCustomNote && (
             <div className="space-y-2">
               <Label className="text-white flex items-center gap-2">
                 <StickyNote size={16} className="text-yellow-400" />
@@ -395,7 +395,7 @@ const MenuStepper: React.FC<MenuStepperProps> = ({
                 rows={2}
               />
             </div>
-          )}
+          )} */}
 
           {/* Récapitulatif des sélections (étape finale) */}
           {isLastStep && (
