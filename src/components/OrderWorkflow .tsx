@@ -650,11 +650,6 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
                 <Card 
                   key={item.id} 
                   className="bg-gray-800/50 border-gray-700 hover:border-yellow-500/50 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl hover:shadow-yellow-500/10"
-                  style={{
-                    animation: `fadeInUp 0.6s ease-out forwards`,
-                    animationDelay: `${index * 0.1}s`,
-                    opacity: 0
-                  }}
                 >
                   <style jsx>{`
                     @keyframes fadeInUp {
