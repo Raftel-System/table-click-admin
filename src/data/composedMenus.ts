@@ -37,6 +37,117 @@ export interface MenuSelection {
 
 // 🎯 Configuration statique des menus Talya
 export const STATIC_COMPOSED_MENUS: Record<string, ComposedMenuConfig> = {
+
+    // 🥪 NOUVEAUX MENUS SANDWICH
+    'sandwich-seul': {
+      steps: [
+        {
+          id: 'sandwich',
+          label: 'Choisir votre sandwich',
+          description: 'Sélectionnez votre sandwich préféré',
+          selectionType: 'single',
+          required: true,
+          allowCustomNote: true,
+          sourceType: 'custom',
+          customOptions: [
+            {
+              id: 'ch-poulet',
+              label: 'Chawarma poulet',
+              description: 'Émincé de poulet mariné',
+              emoji: '🐔'
+            },
+            {
+              id: 'ch-boeuf',
+              label: 'Chawarma bœuf',
+              description: 'Émincé de bœuf mariné',
+              emoji: '🥩'
+            },
+            {
+              id: 'taouk',
+              label: 'Taouk',
+              description: 'À base de poulet mariné et de jus de citron',
+              emoji: '🍗'
+            },
+            {
+              id: 'sawda',
+              label: 'Sawda',
+              description: 'Foies de volaille flambés au citron',
+              emoji: '🍖'
+            },
+            {
+              id: 'falafel',
+              label: 'Falafel',
+              description: 'Boulettes végétariennes aux pois chiches',
+              emoji: '🌱'
+            }
+          ]
+        }
+      ]
+    },
+  
+    'sandwich-avec-boisson': {
+      steps: [
+        {
+          id: 'sandwich',
+          label: 'Choisir votre sandwich',
+          description: 'Sélectionnez votre sandwich préféré',
+          selectionType: 'single',
+          required: true,
+          allowCustomNote: true,
+          sourceType: 'custom',
+          customOptions: [
+            {
+              id: 'ch-poulet',
+              label: 'Chawarma poulet',
+              description: 'Émincé de poulet mariné',
+              emoji: '🐔'
+            },
+            {
+              id: 'ch-boeuf',
+              label: 'Chawarma bœuf',
+              description: 'Émincé de bœuf mariné',
+              emoji: '🥩'
+            },
+            {
+              id: 'taouk',
+              label: 'Taouk',
+              description: 'À base de poulet mariné et de jus de citron',
+              emoji: '🍗'
+            },
+            {
+              id: 'sawda',
+              label: 'Sawda',
+              description: 'Foies de volaille flambés au citron',
+              emoji: '🍖'
+            },
+            {
+              id: 'falafel',
+              label: 'Falafel',
+              description: 'Boulettes végétariennes aux pois chiches',
+              emoji: '🌱'
+            }
+          ]
+        },
+        {
+          id: 'boisson',
+          label: 'Choisir votre boisson',
+          description: 'Sélectionnez votre boisson 33cl',
+          selectionType: 'single',
+          required: true,
+          allowCustomNote: true,
+          sourceType: 'custom',
+          customOptions: [
+            { id: 'coca-cola', label: 'Coca-Cola', emoji: '🥤' },
+            { id: 'coca-zero', label: 'Coca-Cola Zéro', emoji: '🥤' },
+            { id: 'orangina', label: 'Orangina', emoji: '🍊' },
+            { id: 'sprite', label: 'Sprite', emoji: '🍋' },
+            { id: 'fanta', label: 'Fanta', emoji: '🍊' },
+            { id: 'perrier', label: 'Perrier', emoji: '💧' },
+            { id: 'eau-plate', label: 'Eau plate', emoji: '💧' }
+          ]
+        }
+      ]
+    },
   // 🥪 Menus sandwichs
   'menu-talya-express': {
     steps: [
@@ -545,6 +656,8 @@ export const STATIC_COMPOSED_MENUS: Record<string, ComposedMenuConfig> = {
 export const STATIC_COMPOSED_MENU_NAMES = [
   'Menu Talya express',
   'Menu Talya gourmand',
+  'Sandwich au choix',                    // ✅ NOUVEAU
+  'Sandwich + Boisson',                   // ✅ NOUVEAU
   'Assiette chawarma poulet & boisson',
   'Assiette chawarma (bœuf ou poulet) & boisson',
   'Assiette au choix & boisson',
@@ -571,6 +684,15 @@ export function getComposedMenuConfig(itemName: string): ComposedMenuConfig | nu
   
   if (name.includes('menu talya gourmand')) {
     return STATIC_COMPOSED_MENUS['menu-talya-gourmand'];
+  }
+
+  // ✅ NOUVEAUX MENUS
+  if (name.includes('sandwich au choix') && !name.includes('boisson')) {
+    return STATIC_COMPOSED_MENUS['sandwich-seul'];
+  }
+
+  if (name.includes('sandwich + boisson') || (name.includes('sandwich') && name.includes('boisson'))) {
+    return STATIC_COMPOSED_MENUS['sandwich-avec-boisson'];
   }
 
   if (name.includes('assiette chawarma poulet & boisson')) {
