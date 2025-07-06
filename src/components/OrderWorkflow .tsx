@@ -1,5 +1,5 @@
 // OrderWorkflow modifié avec gestion des instructions spéciales
-import React, { useState, useEffect, useMemo } from 'react';
+import React, {useState, useEffect, useMemo, useCallback} from 'react';
 import { 
   Coffee, 
   Package, 
@@ -165,6 +165,9 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
     cartItem: CartItem;
     cartIndex: number;
   } | null>(null);
+
+  const [tableNumberInput, setTableNumberInput] = useState('');
+  const [clientNumberInput, setClientNumberInput] = useState('');
   
   const { submitOrder, printTicket, orders } = useOrders('talya-bercy');
 
@@ -186,6 +189,14 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
     const total = order.cart.reduce((sum, item) => sum + (item.prix * item.quantite), 0);
     setOrder(prev => ({ ...prev, total }));
   }, [order.cart]);
+
+  useEffect(() => {
+    setTableNumberInput(order.tableNumber);
+  }, [order.tableNumber]);
+
+  useEffect(() => {
+    setClientNumberInput(order.clientNumber);
+  }, [order.clientNumber]);
 
   useEffect(() => {
     if (order.orderType === 'sur_place') {
@@ -437,6 +448,24 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
       setLoading(false);
     }
   };
+
+  const handleTableNumberChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setTableNumberInput(value);
+    // Débounce pour éviter trop de mises à jour de l'état principal
+    setTimeout(() => {
+      setOrder(prev => ({ ...prev, tableNumber: value }));
+    }, 100);
+  }, []);
+
+  const handleClientNumberChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setClientNumberInput(value); // Mise à jour immédiate de l'input
+    // Débounce pour éviter trop de mises à jour de l'état principal
+    setTimeout(() => {
+      setOrder(prev => ({ ...prev, clientNumber: value }));
+    }, 100);
+  }, []);
 
   // Composants d'étapes
   const StepIndicator = () => {
@@ -1036,10 +1065,12 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
               
               <div className="flex gap-3">
                 <Input
-                  value={order.tableNumber}
-                  onChange={(e) => setOrder(prev => ({ ...prev, tableNumber: e.target.value }))}
+                  key="table-input"
+                  value={tableNumberInput}
+                  onChange={handleTableNumberChange}
                   placeholder="Ex: 12"
                   className="flex-1 h-14 text-lg bg-gray-700/50 border-gray-600 text-white rounded-2xl"
+                  autoComplete="off"
                 />
                 <Button
                   onClick={() => setShowTableSelector(true)}
@@ -1064,10 +1095,12 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
               </Label>
               
               <Input
-                value={order.clientNumber}
-                onChange={(e) => setOrder(prev => ({ ...prev, clientNumber: e.target.value }))}
+                key="client-input"
+                value={clientNumberInput}
+                onChange={handleClientNumberChange}
                 placeholder="Ex: 42"
                 className="h-14 text-lg bg-gray-700/50 border-gray-600 text-white rounded-2xl"
+                autoComplete="off"
               />
               
               {order.clientNumber && (

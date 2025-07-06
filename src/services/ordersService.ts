@@ -28,10 +28,9 @@ export interface Order extends OrderData {
     noteCommande?: string;
 }
 
-// ✅ Fonction principale pour soumettre une commande admin
 export const submitAdminOrder = async (orderData: OrderData, restaurantSlug: string): Promise<{ success: boolean; orderId?: string; error?: string }> => {
     try {
-        // Validation des données
+        // Validation des données (identique)
         if (!orderData.items || orderData.items.length === 0) {
             throw new Error('Aucun article dans la commande');
         }
@@ -50,7 +49,7 @@ export const submitAdminOrder = async (orderData: OrderData, restaurantSlug: str
 
         // Générer un ID unique et ajouter les métadonnées
         const orderToSubmit: any = {
-            source: 'admin', // ✅ Toujours marquer comme source admin
+            source: 'admin',
             createdAt: new Date().toISOString(),
             status: 'pending',
             items: orderData.items,
@@ -58,9 +57,8 @@ export const submitAdminOrder = async (orderData: OrderData, restaurantSlug: str
             mode: orderData.mode
         };
 
-        // ✅ Ajouter les champs spécifiques UNIQUEMENT s'ils existent (éviter undefined)
         if (orderData.mode === 'sur_place' && orderData.table) {
-            orderToSubmit.tableNumber = typeof orderData.table === 'string' ? parseInt(orderData.table) : orderData.table;
+            orderToSubmit.tableNumber = orderData.table;
         }
 
         if (orderData.mode === 'emporter' && orderData.numeroClient) {
@@ -71,11 +69,9 @@ export const submitAdminOrder = async (orderData: OrderData, restaurantSlug: str
             orderToSubmit.noteCommande = orderData.note.trim();
         }
 
-        // Déterminer le chemin Firebase selon le type de commande
-        const basePath = `orders/${restaurantSlug}`;
-        const orderPath = orderData.mode === 'sur_place' 
-            ? `${basePath}/tables/${orderData.table}`
-            : `${basePath}/takeaway`;
+        const orderPath = orderData.mode === 'sur_place'
+            ? `orders/${restaurantSlug}/tables`
+            : `orders/${restaurantSlug}/takeaway`;
 
         // Créer la référence et pousser la commande
         const orderRef = ref(rtDatabase, orderPath);

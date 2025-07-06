@@ -78,14 +78,14 @@ const RESTAURANT_LAYOUT = {
       { number: "T1", type: "round", position: { row: 0, col: 0 }, capacity: 2 },
       { number: "T2", type: "round", position: { row: 0, col: 1 }, capacity: 2 },
       { number: "T3", type: "round", position: { row: 0, col: 2 }, capacity: 2 },
-      { number: "T4", type: "square", position: { row: 0, col: 3 }, capacity: 4, occupied: true },
+      { number: "T4", type: "square", position: { row: 0, col: 3 }, capacity: 4 },
       { number: "T5", type: "round", position: { row: 0, col: 4 }, capacity: 2 },
       { number: "T6", type: "round", position: { row: 0, col: 5 }, capacity: 2 },
-      { number: "T7", type: "square", position: { row: 0, col: 6 }, capacity: 4, occupied: true },
+      { number: "T7", type: "square", position: { row: 0, col: 6 }, capacity: 4 },
       
       // Deuxième rangée terrasse
       { number: "T8", type: "round", position: { row: 1, col: 5 }, capacity: 2 },
-      { number: "T9", type: "square", position: { row: 1, col: 3 }, capacity: 4, occupied: true },
+      { number: "T9", type: "square", position: { row: 1, col: 3 }, capacity: 4 },
       { number: "T10", type: "round", position: { row: 1, col: 1 }, capacity: 2 },
       { number: "T11", type: "round", position: { row: 1, col: 0 }, capacity: 2 }
     ]

@@ -169,20 +169,15 @@ export const useOrders = (restaurantSlug: string) => {
                     if (data) {
                         // Parcourir les tables
                         if (data.tables) {
-                            Object.entries(data.tables).forEach(([tableId, tableData]: [string, any]) => {
-                                if (tableData && typeof tableData === 'object') {
-                                    Object.entries(tableData).forEach(([orderId, orderData]: [string, any]) => {
-                                        if (orderData && typeof orderData === 'object') {
-                                            allOrders.push({
-                                                id: orderId,
-                                                ...orderData,
-                                                status: orderData.status || 'pending', // ✅ Défaut pending
-                                                mode: 'sur_place' as const,
-                                                tableNumber: tableId,
-                                                tablePath: 'tables',
-                                                tableId: tableId
-                                            });
-                                        }
+                            Object.entries(data.tables).forEach(([orderId, orderData]: [string, any]) => {
+                                if (orderData && typeof orderData === 'object') {
+                                    allOrders.push({
+                                        id: orderId,
+                                        ...orderData,
+                                        status: orderData.status || 'pending',
+                                        mode: 'sur_place' as const,
+                                        tablePath: 'tables',
+                                        tableId: 'tables'
                                     });
                                 }
                             });
@@ -361,30 +356,34 @@ export const useOrders = (restaurantSlug: string) => {
             const orderItems = transformCartToOrderItems(activeOrder.cart);
 
             // Préparer les données de commande pour Firebase
-            const orderData: OrderData = {
+            const orderData: any = {
                 items: orderItems,
                 total: activeOrder.total,
                 createdAt: timestamp,
                 status: 'pending',
-                updatedAt: timestamp
+                updatedAt: timestamp,
+                mode: activeOrder.orderType
             };
+
+            console.log("orderdata:::" , orderData);
 
             // ✅ Ajouter noteCommande seulement si présente et non vide
             if (activeOrder.globalNote && activeOrder.globalNote.trim()) {
                 orderData.noteCommande = activeOrder.globalNote.trim();
             }
 
-            // Déterminer le chemin selon le type de commande
-            let orderPath: string;
             if (activeOrder.orderType === 'sur_place') {
-                orderPath = `orders/${restaurantSlug}/tables/${activeOrder.tableNumber}`;
-                // Pas besoin d'ajouter numeroClient pour sur_place
+                orderData.tableNumber = activeOrder.tableNumber;  // ✅ AJOUT CRITIQUE
             } else {
-                orderPath = `orders/${restaurantSlug}/takeaway`;
                 if (activeOrder.clientNumber && activeOrder.clientNumber.trim()) {
                     orderData.numeroClient = activeOrder.clientNumber.trim();
                 }
             }
+
+            // Déterminer le chemin selon le type de commande
+            const orderPath = activeOrder.orderType === 'sur_place'
+                ? `orders/${restaurantSlug}/tables`
+                : `orders/${restaurantSlug}/takeaway`;
 
             // ✅ Nettoyer les données finales avant envoi
             const cleanedOrderData = cleanObject(orderData);
@@ -459,7 +458,7 @@ export const useOrders = (restaurantSlug: string) => {
                 throw new Error(`Transition non autorisée: ${order.status} → ${newStatus}`);
             }
 
-            const orderPath = `orders/${restaurantSlug}/${order.tablePath}/${order.tableId}/${orderId}`;
+            const orderPath = `orders/${restaurantSlug}/${order.tablePath}/${orderId}`;
             const now = new Date().toISOString();
 
             // Données à mettre à jour
@@ -596,7 +595,8 @@ export const useOrders = (restaurantSlug: string) => {
             // 3. Préparer les données d'impression
             const printData = {
                 ip: config.printerIp,
-                table: order.mode === 'sur_place' ? order.tableNumber : 'EMPORTER',
+                table: order.mode === 'sur_place' ? order.tableNumber : 0,
+                mode: order.mode,
                 numeroClient: order.mode === 'emporter' ? order.numeroClient : 0,
                 commandeId: order.id,
                 // ✅ Note globale de la commande si présente
@@ -635,15 +635,8 @@ export const useOrders = (restaurantSlug: string) => {
                 })
             };
 
-            // console.log('🖨️ Envoi vers imprimante:', {
-            //     commandeId: printData.commandeId,
-            //     table: printData.table,
-            //     produits: printData.produits.length,
-            //     serverUrl: `https://zeus-lab.tailfdaef5.ts.net/print-ticket`
-            // });
-
             // 4. Envoyer la requête au serveur d'impression
-            const response = await fetch(`https://zeus-lab.tailfdaef5.ts.net/print-ticket`, {
+            const response = await fetch(`http://localhost:3001/print-ticket-log`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
