@@ -1,6 +1,6 @@
 // src/hooks/useOrders.ts
 import { useState, useEffect } from 'react';
-import { ref, onValue, off, update, push } from 'firebase/database';
+import { ref, onValue, off, update, push, get, set, runTransaction } from 'firebase/database';
 import { rtDatabase } from '@/lib/firebase';
 import {getRestaurantConfig} from "@/hooks/useRestaurant.ts";
 
@@ -240,6 +240,32 @@ export const useOrders = (restaurantSlug: string) => {
         };
     }, [restaurantSlug]);
 
+    const generateClientNumber = async (): Promise<string> => {
+        const today = new Date();
+        const dateKey = today.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+
+        const counterRef = ref(rtDatabase, `counters/${restaurantSlug}/clientNumbers/${dateKey}`);
+
+        try {
+            // ✅ Utiliser une transaction pour éviter les conflits de race condition
+            const result = await runTransaction(counterRef, (currentValue) => {
+                // Si la valeur n'existe pas, commencer à 1, sinon incrémenter
+                return (currentValue || 0) + 1;
+            });
+
+            const newClientNumber = result.snapshot.val();
+            console.log(`✅ Nouveau numéro client généré: ${newClientNumber} pour ${dateKey}`);
+
+            return newClientNumber.toString();
+        } catch (error) {
+            console.error('❌ Erreur génération numéro client:', error);
+            // Fallback: générer un numéro basé sur le timestamp
+            const fallbackNumber = Date.now().toString().slice(-4);
+            console.warn(`⚠️ Utilisation du numéro de fallback: ${fallbackNumber}`);
+            return fallbackNumber;
+        }
+    };
+
     // ✅ Fonction utilitaire pour nettoyer les valeurs undefined
     const cleanObject = (obj: any): any => {
         if (obj === null || obj === undefined) return null;
@@ -343,6 +369,7 @@ export const useOrders = (restaurantSlug: string) => {
 
     const submitOrder = async (activeOrder: ActiveOrder): Promise<string> => {
         if (!restaurantSlug) throw new Error('Restaurant slug requis');
+
 
         try {
             console.log('🔄 Soumission commande:', activeOrder);
@@ -635,7 +662,7 @@ export const useOrders = (restaurantSlug: string) => {
             };
 
             // 4. Envoyer la requête au serveur d'impression
-            const response = await fetch(`http://localhost:3001/print-ticket-log`, {
+            const response = await fetch(`http://192.168.1.64:3001/print-ticket-log`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -683,6 +710,8 @@ export const useOrders = (restaurantSlug: string) => {
         getPaidOrders,
         getCancelledOrders, // Pour debug uniquement
         // ✅ Nouvelle fonction pour soumettre les commandes
-        submitOrder
+        submitOrder,
+        generateClientNumber
+
     };
 };
