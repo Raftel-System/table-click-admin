@@ -382,7 +382,7 @@ const AdminOrdersView: React.FC = () => {
                         if (editedOrder.mode === 'sur_place') {
                           setEditedOrder(prev => ({ ...prev, tableNumber: e.target.value || undefined }));
                         } else {
-                          setEditedOrder(prev => ({ ...prev, numeroClient: parseInt(e.target.value) || undefined }));
+                          setEditedOrder(prev => ({ ...prev, numeroClient: e.target.value || undefined }));
                         }
                       }}
                       className="mt-1 bg-gray-800 border-gray-600 text-white"

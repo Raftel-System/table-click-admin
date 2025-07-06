@@ -114,7 +114,7 @@ export const listenToAdminOrders = (
                 const adminOrders = allOrders
                     .filter(order => order.source === 'admin')
                     .sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime());
-                
+
                 callback(adminOrders);
             }
         };
@@ -129,7 +129,7 @@ export const listenToAdminOrders = (
 
                 if (snapshot.exists()) {
                     const tablesData = snapshot.val();
-                    
+
                     // Parcourir chaque table
                     Object.entries(tablesData).forEach(([tableNumber, tableOrders]: [string, any]) => {
                         if (tableOrders && typeof tableOrders === 'object') {
@@ -137,7 +137,7 @@ export const listenToAdminOrders = (
                                 if (orderData && typeof orderData === 'object') {
                                     allOrders.push({
                                         id: orderId,
-                                        tableNumber: parseInt(tableNumber),
+                                        tableNumber: tableNumber,
                                         mode: 'sur_place',
                                         ...orderData
                                     } as Order);
@@ -146,7 +146,7 @@ export const listenToAdminOrders = (
                         }
                     });
                 }
-                
+
                 tablesLoaded = true;
                 processOrders();
             } catch (error: any) {
@@ -168,7 +168,7 @@ export const listenToAdminOrders = (
 
                 if (snapshot.exists()) {
                     const takeawayData = snapshot.val();
-                    
+
                     Object.entries(takeawayData).forEach(([orderId, orderData]: [string, any]) => {
                         if (orderData && typeof orderData === 'object') {
                             allOrders.push({
@@ -179,7 +179,7 @@ export const listenToAdminOrders = (
                         }
                     });
                 }
-                
+
                 takeawayLoaded = true;
                 processOrders();
             } catch (error: any) {
@@ -253,8 +253,8 @@ export const getAdminOrderStats = (orders: Order[]) => {
         ready: todayOrders.filter(order => order.status === 'ready').length,
         delivered: todayOrders.filter(order => order.status === 'delivered').length,
         revenue: todayOrders.reduce((sum, order) => sum + (order.total || 0), 0),
-        averageOrderValue: todayOrders.length > 0 
-            ? todayOrders.reduce((sum, order) => sum + (order.total || 0), 0) / todayOrders.length 
+        averageOrderValue: todayOrders.length > 0
+            ? todayOrders.reduce((sum, order) => sum + (order.total || 0), 0) / todayOrders.length
             : 0
     };
 };

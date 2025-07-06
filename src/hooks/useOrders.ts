@@ -53,7 +53,6 @@ export interface Order {
     total: number;
     items: OrderItem[];
     noteCommande?: string;
-    // ✅ Champs pour le suivi des statuts et transitions
     updatedAt?: string; // Date de dernière modification
     servedAt?: string; // Date de service (pending → served)
     paidAt?: string; // Date de paiement (served → paid)
@@ -66,7 +65,7 @@ export interface Order {
 
 export interface OrderStats {
     totalOrders: number;
-    totalRevenue: number; // ✅ Basé uniquement sur les commandes 'paid'
+    totalRevenue: number;
     tableOrders: number;
     takeawayOrders: number;
     averageOrderValue: number;
@@ -200,7 +199,7 @@ export const useOrders = (restaurantSlug: string) => {
                                         mode: 'emporter' as const,
                                         tablePath: 'takeaway',
                                         tableId: 'takeaway',
-                                        numeroClient: typedOrderData.numeroClient ? Number(typedOrderData.numeroClient) : undefined
+                                        numeroClient: typedOrderData.numeroClient
                                     });
                                 }
                             });
