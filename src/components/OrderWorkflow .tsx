@@ -1,5 +1,5 @@
 // OrderWorkflow modifié avec gestion des instructions spéciales
-import React, { useState, useEffect, useMemo } from 'react';
+import React, {useState, useEffect, useMemo, useCallback} from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Coffee, 
@@ -159,15 +159,17 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
   } | null>(null);
   const [showPortionOptions, setShowPortionOptions] = useState<Record<string, boolean>>({});
   const [showTableSelector, setShowTableSelector] = useState(false);
-  
+  const [generatedClientNumber, setGeneratedClientNumber] = useState<string>('');
+  const [isGeneratingClientNumber, setIsGeneratingClientNumber] = useState(false);
+
   // ✅ États pour les instructions spéciales
   const [showSpecialInstruction, setShowSpecialInstruction] = useState(false);
   const [pendingNoteItem, setPendingNoteItem] = useState<{
     cartItem: CartItem;
     cartIndex: number;
   } | null>(null);
-  
-  const { submitOrder, printTicket, orders } = useOrders('talya-bercy');
+
+  const { submitOrder, printTicket, orders, generateClientNumber } = useOrders('talya-bercy');
   const navigate = useNavigate();
 
   const [order, setOrder] = useState<ActiveOrder>({
@@ -196,6 +198,40 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
       setOrder(prev => ({ ...prev, tableNumber: '' }));
     }
   }, [order.orderType]);
+
+  useEffect(() => {
+    if (order.orderType === 'emporter' && currentStep === 'finalization' && !generatedClientNumber) {
+      handleGenerateClientNumber();
+    }
+  }, [order.orderType, currentStep, generatedClientNumber]);
+
+  const handleGenerateClientNumber = async () => {
+    if (order.orderType !== 'emporter') return;
+
+    setIsGeneratingClientNumber(true);
+    try {
+      const clientNumber = await generateClientNumber();
+      setGeneratedClientNumber(clientNumber);
+      setOrder(prev => ({ ...prev, clientNumber }));
+      console.log(`📱 Numéro client généré: ${clientNumber}`);
+    } catch (error) {
+      console.error('❌ Erreur génération numéro client:', error);
+      // Fallback en cas d'erreur
+      const fallbackNumber = Date.now().toString().slice(-4);
+      setGeneratedClientNumber(fallbackNumber);
+      setOrder(prev => ({ ...prev, clientNumber: fallbackNumber }));
+    } finally {
+      setIsGeneratingClientNumber(false);
+    }
+  };
+
+  const handleTableSelectorOpen = useCallback(() => {
+    setShowTableSelector(true);
+  }, []);
+
+  const handleTableNumberChange = useCallback((value: string) => {
+    setOrder(prev => ({ ...prev, tableNumber: value }));
+  }, []);
 
   // Items filtrés
   const filteredItems = useMemo(() => {
@@ -1079,122 +1115,126 @@ const OrderWorkflow: React.FC<OrderWorkflowProps> = ({
   );
 
   const FinalizationStep = () => (
-    <div className="max-w-2xl mx-auto space-y-8">
-      <div className="text-center">
-        <h2 className="text-4xl font-bold text-white mb-4">Finaliser votre commande</h2>
-        <p className="text-gray-400 text-lg">Derniers détails avant validation</p>
-      </div>
+      <div className="max-w-2xl mx-auto space-y-8">
+        <div className="text-center">
+          <h2 className="text-4xl font-bold text-white mb-4">Finaliser votre commande</h2>
+          <p className="text-gray-400 text-lg">Derniers détails avant validation</p>
+        </div>
 
-      <Card className="bg-gray-800/50 border-gray-700">
-        <CardHeader>
-          <CardTitle className="text-white flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
-              order.orderType === 'sur_place' 
-                ? 'bg-blue-500/20 text-blue-400' 
-                : 'bg-green-500/20 text-green-400'
-            }`}>
-              {order.orderType === 'sur_place' ? <Coffee size={20} /> : <Package size={20} />}
-            </div>
-            Informations de service
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {order.orderType === 'sur_place' ? (
-            <div className="space-y-3">
-              <Label className="text-white font-medium flex items-center gap-2">
-                <Target size={16} className="text-blue-400" />
-                Numéro de table *
-              </Label>
-              
-              <div className="flex gap-3">
-                <Input
-                  value={order.tableNumber}
-                  onChange={(e) => setOrder(prev => ({ ...prev, tableNumber: e.target.value }))}
-                  placeholder="Ex: 12"
-                  className="flex-1 h-14 text-lg bg-gray-700/50 border-gray-600 text-white rounded-2xl"
-                />
-                <Button
-                  onClick={() => setShowTableSelector(true)}
-                  className="h-14 px-4 bg-blue-500/20 border-2 border-blue-500/50 hover:bg-blue-500 text-blue-400 hover:text-white rounded-2xl transition-all duration-300"
-                  title="Plan de salle"
-                >
-                  <Grid3X3 size={20} />
-                </Button>
+        <Card className="bg-gray-800/50 border-gray-700">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
+                  order.orderType === 'sur_place'
+                      ? 'bg-blue-500/20 text-blue-400'
+                      : 'bg-green-500/20 text-green-400'
+              }`}>
+                {order.orderType === 'sur_place' ? <Coffee size={20} /> : <Package size={20} />}
               </div>
-              
-              {order.tableNumber && (
-                <div className="text-sm text-blue-400 bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
-                  ✅ Table {order.tableNumber} sélectionnée
+              Informations de service
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {order.orderType === 'sur_place' ? (
+                <div className="space-y-3">
+                  <Label className="text-white font-medium flex items-center gap-2">
+                    <Target size={16} className="text-blue-400" />
+                    Numéro de table *
+                  </Label>
+
+                  <div className="flex gap-3">
+                    <Input
+                        key="table-number-input"
+                        value={order.tableNumber}
+                        onChange={(e) => handleTableNumberChange(e.target.value)}
+                        placeholder="Ex: 12"
+                        className="flex-1 h-14 text-lg bg-gray-700/50 border-gray-600 text-white rounded-2xl"
+                    />
+                    <Button
+                        onClick={handleTableSelectorOpen}
+                        className="h-14 px-4 bg-blue-500/20 border-2 border-blue-500/50 hover:bg-blue-500 text-blue-400 hover:text-white rounded-2xl transition-all duration-300"
+                        title="Plan de salle"
+                    >
+                      <Grid3X3 size={20} />
+                    </Button>
+                  </div>
+
+
                 </div>
-              )}
+            ) : (
+                // ✅ SECTION MODIFIÉE pour l'à emporter
+                <div className="space-y-3">
+                  <Label className="text-white font-medium flex items-center gap-2">
+                    <ShoppingBag size={16} className="text-green-400" />
+                    Numéro client
+                  </Label>
+
+                  {isGeneratingClientNumber ? (
+                      <div className="h-14 bg-gray-700/50 border border-gray-600 rounded-2xl flex items-center justify-center">
+                        <div className="flex items-center gap-3 text-gray-400">
+                          <div className="w-5 h-5 border-2 border-green-400/30 border-t-green-400 rounded-full animate-spin"></div>
+                          <span>Génération du numéro client...</span>
+                        </div>
+                      </div>
+                  ) : generatedClientNumber ? (
+                      <div className="space-y-3">
+                        <div className="h-14 bg-green-500/10 border-2 border-green-500/50 rounded-2xl flex items-center justify-between px-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center">
+                              <span className="text-xl font-bold text-green-400">#{generatedClientNumber}</span>
+                            </div>
+                            <div>
+                              <div className="text-lg font-bold text-green-400">Client N°{generatedClientNumber}</div>
+                              <div className="text-sm text-gray-400">Numéro généré automatiquement</div>
+                            </div>
+                          </div>
+
+
+                        </div>
+
+                      </div>
+                  ) : (
+                      <div className="h-14 bg-red-500/10 border border-red-500/50 rounded-2xl flex items-center justify-center">
+                        <div className="flex items-center gap-3 text-red-400">
+                          <X size={20} />
+                          <span>Erreur de génération - Rechargez la page</span>
+                        </div>
+                      </div>
+                  )}
+                </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-r from-green-500/10 to-green-600/10 border-green-500/30">
+          <CardContent className="p-6">
+            <div className="text-center space-y-4">
+              <div className="text-3xl font-bold text-green-400">
+                Total: {order.total.toFixed(2)}{currency}
+              </div>
+              <div className="text-gray-400">
+                {order.cart.reduce((total, item) => total + item.quantite, 0)} article{order.cart.reduce((total, item) => total + item.quantite, 0) > 1 ? 's' : ''}
+              </div>
             </div>
+          </CardContent>
+        </Card>
+
+        <Button
+            onClick={handleSubmit}
+            disabled={loading || order.cart.length === 0 ||
+                (order.orderType === 'sur_place' && !order.tableNumber.trim()) ||
+                (order.orderType === 'emporter' && (!generatedClientNumber || isGeneratingClientNumber))
+            }
+            className="w-full h-16 text-xl font-bold bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white rounded-2xl disabled:opacity-50"
+        >
+          {loading ? (
+              <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mr-3" />
           ) : (
-            <div className="space-y-3">
-              <Label className="text-white font-medium flex items-center gap-2">
-                <ShoppingBag size={16} className="text-green-400" />
-                Numéro client *
-              </Label>
-              
-              <Input
-                value={order.clientNumber}
-                onChange={(e) => setOrder(prev => ({ ...prev, clientNumber: e.target.value }))}
-                placeholder="Ex: 42"
-                className="h-14 text-lg bg-gray-700/50 border-gray-600 text-white rounded-2xl"
-              />
-              
-              {order.clientNumber && (
-                <div className="text-sm text-green-400 bg-green-500/10 border border-green-500/30 rounded-lg p-3">
-                  📦 Commande à emporter - Client n°{order.clientNumber}
-                </div>
-              )}
-            </div>
+              <Save size={24} className="mr-3" />
           )}
-
-         {/*  <div className="space-y-3">
-            <Label className="text-white font-medium flex items-center gap-2">
-              <StickyNote size={16} className="text-yellow-400" />
-              Instructions spéciales (optionnel)
-            </Label>
-            <Textarea
-              value={order.globalNote}
-              onChange={(e) => setOrder(prev => ({ ...prev, globalNote: e.target.value }))}
-              placeholder="Allergies, préférences de cuisson..."
-              className="bg-gray-700/50 border-gray-600 text-white rounded-2xl resize-none"
-              rows={3}
-            />
-          </div> */}
-        </CardContent>
-      </Card>
-
-      <Card className="bg-gradient-to-r from-green-500/10 to-green-600/10 border-green-500/30">
-        <CardContent className="p-6">
-          <div className="text-center space-y-4">
-            <div className="text-3xl font-bold text-green-400">
-              Total: {order.total.toFixed(2)}{currency}
-            </div>
-            <div className="text-gray-400">
-              {order.cart.reduce((total, item) => total + item.quantite, 0)} article{order.cart.reduce((total, item) => total + item.quantite, 0) > 1 ? 's' : ''}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Button
-        onClick={handleSubmit}
-        disabled={loading || order.cart.length === 0 || 
-          (order.orderType === 'sur_place' && !order.tableNumber.trim()) ||
-          (order.orderType === 'emporter' && !order.clientNumber.trim())
-        }
-        className="w-full h-16 text-xl font-bold bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white rounded-2xl disabled:opacity-50"
-      >
-        {loading ? (
-          <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mr-3" />
-        ) : (
-          <Save size={24} className="mr-3" />
-        )}
-        {loading ? 'Validation en cours...' : 'Valider la commande'}
-      </Button>
-    </div>
+          {loading ? 'Validation en cours...' : 'Valider la commande'}
+        </Button>
+      </div>
   );
 
   return (
