@@ -5,6 +5,7 @@ import AdminDashboard from '@/pages/AdminDashboard';
 import { Toaster } from 'sonner';
 import AdminNewOrder from './components/admin/AdminNewOrder';
 import LoginPage from "@/pages/LoginPage";
+import RestaurantConfigAdmin from "@/pages/RestaurantConfigAdmin.tsx";
 
 function App() {
     return (
@@ -13,6 +14,7 @@ function App() {
                 <Routes>
                     {/* Route dynamique pour admin dashboard */}
                     <Route path="/" element={<LoginPage />} />
+                    <Route path="/dev" element={<RestaurantConfigAdmin />} />
                     <Route path="/:restaurantSlug/" element={<AdminDashboard />} />
                     <Route path="/:restaurantSlug/commande" element={<AdminNewOrder />} />
                 </Routes>

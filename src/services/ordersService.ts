@@ -28,10 +28,9 @@ export interface Order extends OrderData {
     noteCommande?: string;
 }
 
-// ✅ Fonction principale pour soumettre une commande admin
 export const submitAdminOrder = async (orderData: OrderData, restaurantSlug: string): Promise<{ success: boolean; orderId?: string; error?: string }> => {
     try {
-        // Validation des données
+        // Validation des données (identique)
         if (!orderData.items || orderData.items.length === 0) {
             throw new Error('Aucun article dans la commande');
         }
@@ -50,7 +49,7 @@ export const submitAdminOrder = async (orderData: OrderData, restaurantSlug: str
 
         // Générer un ID unique et ajouter les métadonnées
         const orderToSubmit: any = {
-            source: 'admin', // ✅ Toujours marquer comme source admin
+            source: 'admin',
             createdAt: new Date().toISOString(),
             status: 'pending',
             items: orderData.items,
@@ -58,9 +57,8 @@ export const submitAdminOrder = async (orderData: OrderData, restaurantSlug: str
             mode: orderData.mode
         };
 
-        // ✅ Ajouter les champs spécifiques UNIQUEMENT s'ils existent (éviter undefined)
         if (orderData.mode === 'sur_place' && orderData.table) {
-            orderToSubmit.tableNumber = typeof orderData.table === 'string' ? parseInt(orderData.table) : orderData.table;
+            orderToSubmit.tableNumber = orderData.table;
         }
 
         if (orderData.mode === 'emporter' && orderData.numeroClient) {
@@ -71,11 +69,9 @@ export const submitAdminOrder = async (orderData: OrderData, restaurantSlug: str
             orderToSubmit.noteCommande = orderData.note.trim();
         }
 
-        // Déterminer le chemin Firebase selon le type de commande
-        const basePath = `orders/${restaurantSlug}`;
-        const orderPath = orderData.mode === 'sur_place' 
-            ? `${basePath}/tables/${orderData.table}`
-            : `${basePath}/takeaway`;
+        const orderPath = orderData.mode === 'sur_place'
+            ? `orders/${restaurantSlug}/tables`
+            : `orders/${restaurantSlug}/takeaway`;
 
         // Créer la référence et pousser la commande
         const orderRef = ref(rtDatabase, orderPath);
@@ -118,7 +114,7 @@ export const listenToAdminOrders = (
                 const adminOrders = allOrders
                     .filter(order => order.source === 'admin')
                     .sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime());
-                
+
                 callback(adminOrders);
             }
         };
@@ -133,7 +129,7 @@ export const listenToAdminOrders = (
 
                 if (snapshot.exists()) {
                     const tablesData = snapshot.val();
-                    
+
                     // Parcourir chaque table
                     Object.entries(tablesData).forEach(([tableNumber, tableOrders]: [string, any]) => {
                         if (tableOrders && typeof tableOrders === 'object') {
@@ -141,7 +137,7 @@ export const listenToAdminOrders = (
                                 if (orderData && typeof orderData === 'object') {
                                     allOrders.push({
                                         id: orderId,
-                                        tableNumber: parseInt(tableNumber),
+                                        tableNumber: tableNumber,
                                         mode: 'sur_place',
                                         ...orderData
                                     } as Order);
@@ -150,7 +146,7 @@ export const listenToAdminOrders = (
                         }
                     });
                 }
-                
+
                 tablesLoaded = true;
                 processOrders();
             } catch (error: any) {
@@ -172,7 +168,7 @@ export const listenToAdminOrders = (
 
                 if (snapshot.exists()) {
                     const takeawayData = snapshot.val();
-                    
+
                     Object.entries(takeawayData).forEach(([orderId, orderData]: [string, any]) => {
                         if (orderData && typeof orderData === 'object') {
                             allOrders.push({
@@ -183,7 +179,7 @@ export const listenToAdminOrders = (
                         }
                     });
                 }
-                
+
                 takeawayLoaded = true;
                 processOrders();
             } catch (error: any) {
@@ -257,8 +253,8 @@ export const getAdminOrderStats = (orders: Order[]) => {
         ready: todayOrders.filter(order => order.status === 'ready').length,
         delivered: todayOrders.filter(order => order.status === 'delivered').length,
         revenue: todayOrders.reduce((sum, order) => sum + (order.total || 0), 0),
-        averageOrderValue: todayOrders.length > 0 
-            ? todayOrders.reduce((sum, order) => sum + (order.total || 0), 0) / todayOrders.length 
+        averageOrderValue: todayOrders.length > 0
+            ? todayOrders.reduce((sum, order) => sum + (order.total || 0), 0) / todayOrders.length
             : 0
     };
 };
