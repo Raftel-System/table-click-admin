@@ -908,25 +908,25 @@ const AdminOrdersView: React.FC = () => {
         {/* Header responsive avec statistiques */}
         <div className="mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-            <div>
-              <h1 className="text-2xl lg:text-3xl font-bold text-white mb-2">Gestion des commandes</h1>
-              <p className="text-gray-400">
-                {filteredOrders.length} commande{filteredOrders.length > 1 ? 's' : ''}
-                {searchTerm && ` (filtré${filteredOrders.length > 1 ? 'es' : 'e'})`}
-              </p>
-              {/* ✅ Statistiques du jour */}
-              <div className="flex items-center gap-4 mt-2 text-sm">
-              <span className="text-gray-400">
-                📊 {stats.totalOrders} commandes aujourd'hui
-              </span>
-                <span className="text-green-400">
-                💰 {stats.totalRevenue.toFixed(2)}€ de revenus
-              </span>
-                <span className="text-blue-400">
-                📈 {stats.averageOrderValue.toFixed(2)}€ panier moyen
-              </span>
-              </div>
-            </div>
+            {/*<div>*/}
+            {/*  <h1 className="text-2xl lg:text-3xl font-bold text-white mb-2">Gestion des commandes</h1>*/}
+            {/*  <p className="text-gray-400">*/}
+            {/*    {filteredOrders.length} commande{filteredOrders.length > 1 ? 's' : ''}*/}
+            {/*    {searchTerm && ` (filtré${filteredOrders.length > 1 ? 'es' : 'e'})`}*/}
+            {/*  </p>*/}
+            {/*  /!* ✅ Statistiques du jour *!/*/}
+            {/*  <div className="flex items-center gap-4 mt-2 text-sm">*/}
+            {/*  <span className="text-gray-400">*/}
+            {/*    📊 {stats.totalOrders} commandes aujourd'hui*/}
+            {/*  </span>*/}
+            {/*    <span className="text-green-400">*/}
+            {/*    💰 {stats.totalRevenue.toFixed(2)}€ de revenus*/}
+            {/*  </span>*/}
+            {/*    <span className="text-blue-400">*/}
+            {/*    📈 {stats.averageOrderValue.toFixed(2)}€ panier moyen*/}
+            {/*  </span>*/}
+            {/*  </div>*/}
+            {/*</div>*/}
 
             {/* Badge utilisateur avec rôle */}
             <div className="flex items-center gap-3">

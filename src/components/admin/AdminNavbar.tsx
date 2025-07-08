@@ -133,30 +133,30 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
 
                     {/* Right Side - User Info & Actions */}
                     <div className="flex items-center gap-4">
-                        {/* Notifications */}
-                        <div className="relative">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-xl p-2"
-                            >
-                                <Bell size={20} />
-                                {orderStats.pendingOrders > 0 && (
-                                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center animate-bounce">
-                                        {orderStats.pendingOrders}
-                                    </span>
-                                )}
-                            </Button>
-                        </div>
+                        {/*/!* Notifications *!/*/}
+                        {/*<div className="relative">*/}
+                        {/*    <Button*/}
+                        {/*        variant="ghost"*/}
+                        {/*        size="sm"*/}
+                        {/*        className="text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-xl p-2"*/}
+                        {/*    >*/}
+                        {/*        <Bell size={20} />*/}
+                        {/*        {orderStats.pendingOrders > 0 && (*/}
+                        {/*            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center animate-bounce">*/}
+                        {/*                {orderStats.pendingOrders}*/}
+                        {/*            </span>*/}
+                        {/*        )}*/}
+                        {/*    </Button>*/}
+                        {/*</div>*/}
 
-                        {/* Search */}
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-xl p-2"
-                        >
-                            <Search size={20} />
-                        </Button>
+                        {/*/!* Search *!/*/}
+                        {/*<Button*/}
+                        {/*    variant="ghost"*/}
+                        {/*    size="sm"*/}
+                        {/*    className="text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-xl p-2"*/}
+                        {/*>*/}
+                        {/*    <Search size={20} />*/}
+                        {/*</Button>*/}
 
                         {/* Bouton Nouvelle Commande - Avec permission */}
                         <PermissionWrapper permission="canCreateNewOrder">
